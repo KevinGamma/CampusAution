@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"D:\\\\IdeaProjects\\\\CampusAution\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(grep -E \"\\\\.\\(java|xml|yml|yaml|sql\\)$\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\IdeaProjects\\\\CampusAution\\\\frontend\\\\src\" -Recurse -Name)"
+    ]
+  }
+}
