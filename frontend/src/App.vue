@@ -1,6 +1,6 @@
 <template>
   <el-container class="layout">
-    <el-header v-if="route.path !== '/login' && route.path !== '/register'" class="navbar">
+    <el-header v-if="route.path !== '/login' && route.path !== '/register' && route.path !== '/'" class="navbar">
       <!-- Brand -->
       <router-link to="/" class="brand">校园拍卖</router-link>
 
@@ -15,16 +15,15 @@
 
         <!-- ── Student experience: marketplace + personal links ── -->
         <template v-if="isStudent">
-          <router-link to="/" class="nav-link market-link auction-link">拍卖广场</router-link>
-          <router-link to="/market" class="nav-link market-link direct-link">直购市场</router-link>
+          <router-link to="/auction-square" class="nav-link market-link auction-link">拍卖广场</router-link>
+          <router-link to="/direct-market" class="nav-link market-link direct-link">直购市场</router-link>
           <router-link to="/publish" class="nav-link publish-link">发布商品</router-link>
           <router-link to="/profile" class="nav-link account-link">个人中心</router-link>
         </template>
 
-        <!-- ── Guest: market browsing links only ── -->
+        <!-- ── Guest: prompt to log in ── -->
         <template v-if="!isLoggedIn">
-          <router-link to="/" class="nav-link market-link auction-link">拍卖广场</router-link>
-          <router-link to="/market" class="nav-link market-link direct-link">直购市场</router-link>
+          <router-link to="/login" class="nav-link market-link auction-link">登录浏览</router-link>
         </template>
 
         <!-- ── Authenticated: balance chip + user chip (with avatar) + logout ── -->
@@ -53,15 +52,11 @@
           </el-button>
         </template>
 
-        <!-- ── Guest: login link ── -->
-        <router-link v-if="!isLoggedIn" to="/login" class="nav-link login-link">
-          登录
-        </router-link>
       </nav>
     </el-header>
 
     <el-main :class="{ 'no-pad': route.path === '/login' || route.path === '/register' }">
-      <div v-if="route.path !== '/login' && route.path !== '/register'" class="page-content">
+      <div v-if="route.path !== '/login' && route.path !== '/register' && route.path !== '/'" class="page-content">
         <router-view />
       </div>
       <router-view v-else />

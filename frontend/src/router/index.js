@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import WelcomeView        from '../views/WelcomeView.vue'
 import HomeView           from '../views/HomeView.vue'
 import AuctionDetail      from '../views/AuctionDetail.vue'
 import LoginView          from '../views/LoginView.vue'
@@ -13,12 +14,17 @@ import SellerProfileView  from '../views/SellerProfileView.vue'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/',                    component: HomeView,          meta: { requiresAuth: true } },
+    // Public entrance — accessible to all roles (no requiresAuth)
+    { path: '/',                    component: WelcomeView },
+    // Student marketplace routes
+    { path: '/auction-square',      component: HomeView,          meta: { requiresAuth: true } },
     { path: '/auctions/:id',        component: AuctionDetail,     meta: { requiresAuth: true } },
-    { path: '/market',              component: DirectSaleView,    meta: { requiresAuth: true } },
+    { path: '/direct-market',       component: DirectSaleView,    meta: { requiresAuth: true } },
+    // Legacy /market alias kept for backwards compatibility
+    { path: '/market',              redirect: '/direct-market' },
     { path: '/publish',             component: CreateAuctionView, meta: { requiresAuth: true } },
     { path: '/profile',             component: ProfileView,       meta: { requiresAuth: true } },
-    // Public seller profile — /profile/:userId (no auth required)
+    // Public seller profile — no auth required
     { path: '/profile/:userId',     component: SellerProfileView },
     { path: '/login',               component: LoginView,         meta: { guestOnly: true } },
     { path: '/register',            component: RegisterView,      meta: { guestOnly: true } },
@@ -34,18 +40,13 @@ router.beforeEach(to => {
   const raw  = localStorage.getItem('ca_user')
   const user = raw ? JSON.parse(raw) : null
 
-  // Redirect authenticated users away from /login or /register
-  if (to.meta.guestOnly && user) {
-    return user.role === 'ADMIN' ? '/admin' : '/'
-  }
-
-  // Root URL: admins go straight to their dashboard, not the student market
-  if (to.path === '/' && user?.role === 'ADMIN') return '/admin'
+  // Redirect authenticated users away from /login or /register back to welcome
+  if (to.meta.guestOnly && user) return '/'
 
   // All protected routes require a logged-in user
   if (to.meta.requiresAuth && !user) return '/login'
 
-  // Admin-only routes require the ADMIN role
+  // Admin-only routes: students get bounced with a Chinese 403 message
   if (to.meta.requiresAdmin && user?.role !== 'ADMIN') {
     ElMessage.error('权限不足，无法访问管理中心')
     return '/'
