@@ -22,7 +22,8 @@ const router = createRouter({
     { path: '/profile/:userId',     component: SellerProfileView },
     { path: '/login',               component: LoginView,         meta: { guestOnly: true } },
     { path: '/register',            component: RegisterView,      meta: { guestOnly: true } },
-    { path: '/admin/dashboard',     component: AdminView,         meta: { requiresAuth: true, requiresAdmin: true } }
+    { path: '/admin',               component: AdminView,         meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/admin/dashboard',     redirect: '/admin' }
   ]
 })
 
@@ -33,17 +34,20 @@ router.beforeEach(to => {
   const raw  = localStorage.getItem('ca_user')
   const user = raw ? JSON.parse(raw) : null
 
-  // Redirect authenticated users away from /login
+  // Redirect authenticated users away from /login or /register
   if (to.meta.guestOnly && user) {
-    return user.role === 'ADMIN' ? '/admin/dashboard' : '/'
+    return user.role === 'ADMIN' ? '/admin' : '/'
   }
+
+  // Root URL: admins go straight to their dashboard, not the student market
+  if (to.path === '/' && user?.role === 'ADMIN') return '/admin'
 
   // All protected routes require a logged-in user
   if (to.meta.requiresAuth && !user) return '/login'
 
   // Admin-only routes require the ADMIN role
   if (to.meta.requiresAdmin && user?.role !== 'ADMIN') {
-    ElMessage.error('Access Denied: Admin privileges required')
+    ElMessage.error('权限不足，无法访问管理中心')
     return '/'
   }
 })

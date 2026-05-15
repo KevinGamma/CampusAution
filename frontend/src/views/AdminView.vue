@@ -1,13 +1,19 @@
 <template>
   <div v-loading.fullscreen.lock="seeding" element-loading-text="正在生成模拟数据…">
 
+    <!-- ── SDU Identity Stripe ────────────────────────────────────────────────── -->
+    <div class="sdu-stripe">
+      <span class="sdu-emblem">山东大学 · 校园集市</span>
+      <span class="sdu-stripe-motto">学无止境，气有浩然</span>
+    </div>
+
     <!-- ── Admin header ──────────────────────────────────────────────────────── -->
     <div class="admin-hero">
       <div>
-        <h2 class="admin-title">管理后台</h2>
-        <p class="admin-sub">管理平台所有拍卖商品</p>
+        <h2 class="admin-title">山东大学校园集市数据管理与审计中心</h2>
+        <p class="admin-sub">Shandong University Campus Marketplace — Software Campus Audit Console</p>
       </div>
-      <el-tag type="danger" effect="dark" size="large" class="mode-tag">管理员模式</el-tag>
+      <el-tag effect="dark" size="large" class="mode-tag">管理员模式</el-tag>
     </div>
 
     <!-- ── Stats row ─────────────────────────────────────────────────────────── -->
@@ -236,10 +242,52 @@ onMounted(loadAuctions)
 </script>
 
 <style scoped>
-.admin-hero  { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 20px; }
-.admin-title { margin: 0; font-size: 26px; font-weight: 700; color: #1d3557; }
-.admin-sub   { margin: 4px 0 0; color: #909399; font-size: 14px; }
-.mode-tag    { font-size: 13px; padding: 6px 14px; letter-spacing: 1px; }
+/* ── SDU Identity Stripe ── */
+.sdu-stripe {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #800000;
+  border-radius: 8px 8px 0 0;
+  padding: 8px 20px;
+  margin: 20px 0 0;
+}
+.sdu-emblem {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.sdu-stripe-motto {
+  color: rgba(255, 255, 255, .75);
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 2px;
+}
+
+/* ── Admin hero ── */
+.admin-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(128, 0, 0, .2);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 20px 24px;
+  margin: 0 0 20px;
+}
+.admin-title { margin: 0; font-size: 20px; font-weight: 700; color: #800000; }
+.admin-sub   { margin: 4px 0 0; color: #909399; font-size: 13px; }
+.mode-tag {
+  font-size: 13px;
+  padding: 6px 14px;
+  letter-spacing: 1px;
+  background: #800000;
+  border-color: #800000;
+  color: #fff;
+  flex-shrink: 0;
+}
 
 .stats-row  { margin-bottom: 20px; }
 .stat-card  { border-radius: 8px; text-align: center; }
