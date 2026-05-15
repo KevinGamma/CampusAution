@@ -8,7 +8,7 @@
       <nav class="nav-right">
         <!-- ── Admin experience: management links only ── -->
         <template v-if="isAdmin">
-          <router-link to="/admin/dashboard" class="nav-link admin-link">
+          <router-link to="/admin" class="nav-link admin-link">
             管理后台
           </router-link>
         </template>
