@@ -489,7 +489,7 @@ const submitAcceptHighest = async () => {
 .page-title     { font-size: 18px; font-weight: 600; color: #303133; }
 .detail-card    { border-radius: 10px; }
 .detail-head    { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.auction-title  { margin: 0; font-size: 22px; font-weight: 700; color: #1d3557; }
+.auction-title  { margin: 0; font-size: 22px; font-weight: 700; color: #800000; }
 .description    { color: #606266; line-height: 1.75; margin: 0 0 22px; }
 
 /* ── Image carousel ── */
@@ -513,7 +513,7 @@ const submitAcceptHighest = async () => {
   transition: background .18s, border-color .18s;
   max-width: 320px;
 }
-.seller-chip:hover { background: #f5f7fa; border-color: #409eff; }
+.seller-chip:hover { background: #fdf5f5; border-color: #800000; }
 
 .seller-avatar {
   width: 36px; height: 36px;
@@ -536,7 +536,7 @@ const submitAcceptHighest = async () => {
 .seller-review-count { font-size: 11px; color: #909399; }
 .seller-arrow  { color: #c0c4cc; margin-left: auto; font-size: 14px; }
 .metrics        { margin-bottom: 8px; }
-.current-price  { font-size: 22px; font-weight: 700; color: #e6a23c; }
+.current-price  { font-size: 22px; font-weight: 700; color: #b8960f; }
 .countdown-display {
   font-family: 'Courier New', monospace;
   font-size: 20px;
@@ -557,7 +557,7 @@ const submitAcceptHighest = async () => {
 .buy-panel { max-width: 400px; }
 .buy-price-display { display: flex; align-items: baseline; gap: 12px; }
 .buy-price-label { font-size: 14px; color: #909399; }
-.buy-price-value { font-size: 32px; font-weight: 700; color: #67c23a; }
+.buy-price-value { font-size: 32px; font-weight: 700; color: #800000; }
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 </style>

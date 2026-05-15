@@ -1,0 +1,114 @@
+/* ═══════════════════════════════════════════════════════════════════
+   山东大学闲置淘 — Global SDU Brand Theme
+   Overrides Element Plus default blue (#409eff) with SDU Burgundy.
+   Load order: element-plus/dist/index.css → THIS FILE → components.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── SDU Core Palette ─────────────────────────────────────────────── */
+:root {
+  /* Primary: 山大红 SDU Burgundy */
+  --el-color-primary:        #800000;
+  --el-color-primary-dark-2: #600000;
+  --el-color-primary-light-3: #a02020;
+  --el-color-primary-light-5: #c04040;
+  --el-color-primary-light-7: #d99090;
+  --el-color-primary-light-8: #e8b8b8;
+  --el-color-primary-light-9: #f5e8e8;
+
+  /* Accent: 雅金 SDU Gold */
+  --sdu-gold:          #D4AF37;
+  --sdu-gold-dark:     #b8960f;
+  --sdu-gold-light:    #f0d060;
+
+  /* Burgundy shades */
+  --sdu-burgundy:      #800000;
+  --sdu-burgundy-dark: #5a0000;
+  --sdu-burgundy-mid:  #a00000;
+
+  /* Neutral surface */
+  --sdu-surface:       #fdf8f8;
+}
+
+/* ── Body & page background ──────────────────────────────────────── */
+body {
+  background: #f2eded !important;
+}
+
+/* ── Element Plus: primary buttons ──────────────────────────────── */
+.el-button--primary {
+  --el-button-bg-color:            var(--sdu-burgundy);
+  --el-button-border-color:        var(--sdu-burgundy);
+  --el-button-hover-bg-color:      var(--sdu-burgundy-mid);
+  --el-button-hover-border-color:  var(--sdu-burgundy-mid);
+  --el-button-active-bg-color:     var(--sdu-burgundy-dark);
+  --el-button-active-border-color: var(--sdu-burgundy-dark);
+}
+
+/* ── Input / select focus ring ───────────────────────────────────── */
+.el-input__wrapper.is-focus,
+.el-select .el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--sdu-burgundy) inset !important;
+}
+
+/* ── Tabs active indicator ───────────────────────────────────────── */
+.el-tabs__item.is-active {
+  color: var(--sdu-burgundy) !important;
+}
+.el-tabs__active-bar {
+  background-color: var(--sdu-burgundy) !important;
+}
+
+/* ── Pagination active page ──────────────────────────────────────── */
+.el-pagination.is-background .el-pager li.is-active {
+  background: var(--sdu-burgundy) !important;
+}
+
+/* ── Checkbox / Radio / Switch checked ───────────────────────────── */
+.el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: var(--sdu-burgundy) !important;
+  border-color:     var(--sdu-burgundy) !important;
+}
+.el-radio__input.is-checked .el-radio__inner {
+  border-color:       var(--sdu-burgundy) !important;
+  background-color:   var(--sdu-burgundy) !important;
+}
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--sdu-burgundy) !important;
+  border-color:     var(--sdu-burgundy) !important;
+}
+
+/* ── Progress bar ────────────────────────────────────────────────── */
+.el-progress-bar__inner {
+  background-color: var(--sdu-burgundy) !important;
+}
+
+/* ── Slider ─────────────────────────────────────────────────────── */
+.el-slider__bar { background-color: var(--sdu-burgundy) !important; }
+.el-slider__button { border-color: var(--sdu-burgundy) !important; }
+
+/* ── el-rate stars — use SDU gold ───────────────────────────────── */
+.el-rate .el-rate__icon.is-active,
+.el-rate .el-icon.is-active {
+  color: var(--sdu-gold) !important;
+}
+
+/* ── Tag: warning type → SDU gold tint ──────────────────────────── */
+.el-tag--warning.el-tag--dark {
+  background: linear-gradient(135deg, #9a7200, #c49800) !important;
+  border-color: #c49800 !important;
+}
+
+/* ── Link / anchor primary ───────────────────────────────────────── */
+.el-link--primary {
+  color: var(--sdu-burgundy) !important;
+}
+.el-link--primary:hover {
+  color: var(--sdu-burgundy-mid) !important;
+}
+
+/* ── Scrollbar subtle brand ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: #f2eded; }
+::-webkit-scrollbar-thumb  { background: #c08080; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--sdu-burgundy); }

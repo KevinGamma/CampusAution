@@ -101,17 +101,31 @@ const statusType   = computed(() => STATUS_TYPE[props.auction.status] ?? 'info')
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 160px;
-  color: #1d3557;
+  color: #3d0000;
 }
 
 .card-body  { display: flex; flex-direction: column; gap: 10px; }
 .info-row   { display: flex; justify-content: space-between; align-items: center; }
 .label      { color: #909399; font-size: 13px; }
-.price      { font-weight: 700; font-size: 20px; color: #e6a23c; }
-.direct-price { color: #67c23a; }
-.no-bids    { font-style: italic; font-size: 13px; color: #c0c4cc; }
-.buy-now-hint { font-size: 13px; color: #67c23a; font-weight: 500; }
-.countdown  { font-family: 'Courier New', monospace; font-size: 14px; color: #606266; font-weight: 600; }
+
+/* Auction bid price — SDU Gold */
+.price      { font-weight: 700; font-size: 20px; color: #b8960f; }
+
+/* Direct sale — campus store price label */
+.direct-price {
+  font-weight: 800;
+  font-size: 20px;
+  color: #800000;
+  background: rgba(128,0,0,.07);
+  border: 1px solid rgba(128,0,0,.2);
+  border-radius: 4px;
+  padding: 1px 8px;
+  letter-spacing: .5px;
+}
+
+.no-bids      { font-style: italic; font-size: 13px; color: #c0c4cc; }
+.buy-now-hint { font-size: 13px; color: #800000; font-weight: 600; }
+.countdown    { font-family: 'Courier New', monospace; font-size: 14px; color: #606266; font-weight: 600; }
 .countdown.urgent { color: #f56c6c; animation: pulse 1s ease-in-out infinite; }
 
 .card-footer  { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
