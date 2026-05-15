@@ -15,21 +15,21 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     // Public entrance — accessible to all roles (no requiresAuth)
-    { path: '/',                    component: WelcomeView },
+    { path: '/',               name: 'Welcome',        component: WelcomeView },
     // Student marketplace routes
-    { path: '/auction-square',      component: HomeView,          meta: { requiresAuth: true } },
-    { path: '/auctions/:id',        component: AuctionDetail,     meta: { requiresAuth: true } },
-    { path: '/direct-market',       component: DirectSaleView,    meta: { requiresAuth: true } },
+    { path: '/auction-square', name: 'AuctionSquare',  component: HomeView,          meta: { requiresAuth: true } },
+    { path: '/auctions/:id',   name: 'AuctionDetail',  component: AuctionDetail,     meta: { requiresAuth: true } },
+    { path: '/direct-market',  name: 'DirectMarket',   component: DirectSaleView,    meta: { requiresAuth: true } },
     // Legacy /market alias kept for backwards compatibility
-    { path: '/market',              redirect: '/direct-market' },
-    { path: '/publish',             component: CreateAuctionView, meta: { requiresAuth: true } },
-    { path: '/profile',             component: ProfileView,       meta: { requiresAuth: true } },
+    { path: '/market',                                  redirect: { name: 'DirectMarket' } },
+    { path: '/publish',        name: 'Publish',         component: CreateAuctionView, meta: { requiresAuth: true } },
+    { path: '/profile',        name: 'Profile',         component: ProfileView,       meta: { requiresAuth: true } },
     // Public seller profile — no auth required
-    { path: '/profile/:userId',     component: SellerProfileView },
-    { path: '/login',               component: LoginView,         meta: { guestOnly: true } },
-    { path: '/register',            component: RegisterView,      meta: { guestOnly: true } },
-    { path: '/admin',               component: AdminView,         meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/dashboard',     redirect: '/admin' }
+    { path: '/profile/:userId', name: 'SellerProfile', component: SellerProfileView },
+    { path: '/login',           name: 'Login',          component: LoginView,         meta: { guestOnly: true } },
+    { path: '/register',        name: 'Register',       component: RegisterView,      meta: { guestOnly: true } },
+    { path: '/admin',           name: 'Admin',          component: AdminView,         meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/admin/dashboard',                         redirect: { name: 'Admin' } }
   ]
 })
 

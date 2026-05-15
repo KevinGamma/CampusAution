@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Back navigation -->
-    <el-page-header class="page-header" @back="router.push('/')">
+    <el-page-header class="page-header" @back="router.push({ name: 'AuctionSquare' })">
       <template #content>
         <span class="page-title">拍卖详情</span>
       </template>
@@ -287,7 +287,7 @@
     title="交易成功"
     width="400px"
     :close-on-click-modal="false"
-    @closed="router.push('/')"
+    @closed="router.push({ name: 'AuctionSquare' })"
   >
     <template v-if="txResult">
       <el-descriptions :column="1" border>
@@ -432,7 +432,7 @@ const runDelete = async (successMsg) => {
   try {
     await deleteAuction(auctionId)
     ElMessage({ type: 'success', message: successMsg, duration: 3000 })
-    router.push('/')
+    router.push({ name: 'AuctionSquare' })
   } catch {
     // interceptor already notified the user
   } finally {

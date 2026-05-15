@@ -3,7 +3,7 @@
     <el-card class="publish-card">
       <template #header>
         <div class="card-header">
-          <el-page-header @back="router.push('/')" title="返回" content="发布商品" />
+          <el-page-header @back="router.push({ name: 'AuctionSquare' })" title="返回" content="发布商品" />
         </div>
       </template>
 
