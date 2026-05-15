@@ -96,6 +96,16 @@ public interface AuctionService extends IService<Auction> {
     Order acceptBid(Long auctionId, Long bidId);
 
     /**
+     * Owner accepts the current highest bid, closing the auction as SOLD.
+     *
+     * @throws com.campus.auction.exception.ServiceException (404) if auction not found.
+     * @throws com.campus.auction.exception.ServiceException (403) if caller is not the owner.
+     * @throws com.campus.auction.exception.ServiceException (400) if auction is not ACTIVE,
+     *         type is DIRECT, or no bids exist.
+     */
+    Order acceptCurrentHighestBid(Long auctionId);
+
+    /**
      * Authenticated user purchases a DIRECT-sale item at its fixed price.
      *
      * @throws com.campus.auction.exception.ServiceException (400) if the item is an AUCTION type or not ACTIVE.

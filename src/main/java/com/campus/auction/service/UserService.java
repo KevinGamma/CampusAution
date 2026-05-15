@@ -1,6 +1,7 @@
 package com.campus.auction.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.campus.auction.dto.SellerProfileResponse;
 import com.campus.auction.dto.UserDTO;
 import com.campus.auction.entity.User;
 
@@ -29,4 +30,20 @@ public interface UserService extends IService<User> {
      * @throws com.campus.auction.exception.ServiceException (400) if {@code amount} is not positive.
      */
     UserDTO recharge(BigDecimal amount);
+
+    /**
+     * Updates the current user's avatar URL and/or bio.
+     * Null arguments are ignored (field is left unchanged).
+     *
+     * @return the updated UserDTO (password excluded)
+     */
+    UserDTO updateProfile(String avatarUrl, String bio);
+
+    /**
+     * Returns the public profile of any user by ID, including their
+     * average review rating and review count.
+     *
+     * @throws com.campus.auction.exception.ServiceException (404) if the user does not exist.
+     */
+    SellerProfileResponse getSellerProfile(Long userId);
 }

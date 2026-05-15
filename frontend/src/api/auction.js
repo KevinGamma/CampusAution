@@ -82,3 +82,7 @@ export const updateAuction = (id, payload) =>
 /** Owner cancels an ACTIVE listing, setting its status to CANCELLED. */
 export const cancelAuction = (id) =>
   http.post(`/auctions/${id}/cancel`).then(r => r.data)
+
+/** Owner accepts the current highest bid without specifying a bid ID — closes auction as SOLD. */
+export const acceptCurrentHighest = (auctionId) =>
+  http.post(`/auctions/${auctionId}/accept-current-highest`).then(r => r.data)

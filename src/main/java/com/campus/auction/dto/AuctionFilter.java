@@ -48,4 +48,10 @@ public class AuctionFilter {
 
     /** Sort direction: {@code "ASC"} or {@code "DESC"}. Defaults to {@code "DESC"}. */
     private String order;
+
+    /**
+     * When set, restricts results to auctions published by this user ID.
+     * Used by the seller profile page to display a seller's active listings.
+     */
+    private Long creatorId;
 }

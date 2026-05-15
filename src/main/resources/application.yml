@@ -12,12 +12,18 @@ spring:
       # Serialize LocalDateTime as ISO-8601 strings ("2025-05-09T18:00:00"),
       # not as integer arrays ([2025,5,9,18,0,0]) — required by the frontend countdown timer.
       write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 30MB
 
 app:
   jwt:
     # HS256 key — must be ≥ 32 characters (256 bits). Change before deploying.
     secret: "campus-auction-jwt-secret-key-for-hs256-must-be-long-enough-32chars"
     expiration: 604800000   # 7 days in milliseconds
+  upload:
+    dir: uploads/images     # relative to the working directory when the app is launched
 
 mybatis-plus:
   configuration:

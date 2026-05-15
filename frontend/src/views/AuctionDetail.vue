@@ -20,6 +20,22 @@
         </div>
       </template>
 
+      <!-- ── Product image carousel ── -->
+      <el-carousel
+        v-if="auction.imageUrls && auction.imageUrls.length"
+        :interval="4000"
+        :height="carouselHeight"
+        indicator-position="outside"
+        class="image-carousel"
+      >
+        <el-carousel-item
+          v-for="(url, idx) in auction.imageUrls"
+          :key="idx"
+        >
+          <img :src="url" :alt="`商品图片 ${idx + 1}`" class="carousel-img" />
+        </el-carousel-item>
+      </el-carousel>
+
       <!-- ── Description ── -->
       <p class="description">{{ auction.description || '暂无描述。' }}</p>
 
@@ -49,8 +65,37 @@
           </el-descriptions-item>
         </template>
 
-        <el-descriptions-item label="卖家编号">
-          #{{ auction.creatorId }}
+        <el-descriptions-item label="卖家" :span="2">
+          <div
+            class="seller-chip"
+            @click="router.push(`/profile/${auction.creatorId}`)"
+          >
+            <img
+              v-if="sellerInfo?.avatarUrl"
+              :src="sellerInfo.avatarUrl"
+              class="seller-avatar"
+              :alt="sellerInfo.username"
+            />
+            <div v-else class="seller-avatar-fallback">
+              {{ (sellerInfo?.username ?? String(auction.creatorId))[0].toUpperCase() }}
+            </div>
+            <div class="seller-text">
+              <span class="seller-name">
+                {{ sellerInfo ? sellerInfo.username : `用户 #${auction.creatorId}` }}
+              </span>
+              <el-rate
+                v-if="sellerInfo?.averageRating"
+                :model-value="sellerInfo.averageRating"
+                disabled
+                size="small"
+                class="seller-rate"
+              />
+              <span v-if="sellerInfo?.reviewCount" class="seller-review-count">
+                {{ sellerInfo.reviewCount }} 条评价
+              </span>
+            </div>
+            <el-icon class="seller-arrow"><ArrowRight /></el-icon>
+          </div>
         </el-descriptions-item>
       </el-descriptions>
 
@@ -112,6 +157,31 @@
               </el-button>
             </template>
           </el-popconfirm>
+
+          <template v-if="auction.saleType === 'AUCTION' && auction.status === 'ACTIVE'">
+            <el-divider />
+            <el-alert
+              title="您可一键成交当前最高出价。"
+              type="info"
+              :closable="false"
+              show-icon
+              class="panel-alert"
+            />
+            <el-popconfirm
+              :title="`确认以当前最高价成交「${auction.title}」？`"
+              confirm-button-text="确认成交"
+              confirm-button-type="primary"
+              cancel-button-text="取消"
+              width="300"
+              @confirm="submitAcceptHighest"
+            >
+              <template #reference>
+                <el-button type="primary" size="large" :loading="accepting" class="action-btn">
+                  接受当前最高价并成交
+                </el-button>
+              </template>
+            </el-popconfirm>
+          </template>
         </div>
       </template>
 
@@ -184,11 +254,18 @@
               <span class="field-hint">须高于 ¥{{ auction.currentPrice }}</span>
             </el-form-item>
 
+            <el-form-item v-if="isLoggedIn && !isOwner" label=" ">
+              <span class="field-hint">
+                您的账户余额：<strong :style="{ color: overBalance ? '#f56c6c' : '#67c23a' }">¥{{ Number(currentUser?.balance ?? 0).toFixed(2) }}</strong>
+                <span v-if="overBalance" style="color:#f56c6c; margin-left:8px;">出价金额不能超过您的账户余额</span>
+              </span>
+            </el-form-item>
+
             <el-form-item>
               <el-button
                 type="primary"
                 :loading="submitting"
-                :disabled="!isLoggedIn || isOwner || auction.status !== 'ACTIVE' || remaining <= 0"
+                :disabled="!isLoggedIn || isOwner || auction.status !== 'ACTIVE' || remaining <= 0 || overBalance"
                 @click="submitBid"
               >
                 提交出价
@@ -203,13 +280,41 @@
 
     </el-card>
   </div>
+
+  <!-- Transaction breakdown dialog -->
+  <el-dialog
+    v-model="txDialogVisible"
+    title="交易成功"
+    width="400px"
+    :close-on-click-modal="false"
+    @closed="router.push('/')"
+  >
+    <template v-if="txResult">
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="商品">{{ txResult.title }}</el-descriptions-item>
+        <el-descriptions-item label="成交价">¥{{ txResult.amount.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="平台手续费 (5%)">
+          <span style="color: #e6a23c">¥{{ txResult.fee.toFixed(2) }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="卖家实际到账">
+          <span style="color: #67c23a">¥{{ txResult.sellerReceives.toFixed(2) }}</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <p style="margin-top: 12px; color: #909399; font-size: 13px;">点击关闭后将返回首页。</p>
+    </template>
+    <template #footer>
+      <el-button type="primary" @click="txDialogVisible = false">关闭</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getAuction, placeBid as apiBid, deleteAuction, buyDirect } from '../api/auction.js'
+import { ArrowRight } from '@element-plus/icons-vue'
+import { getAuction, placeBid as apiBid, deleteAuction, buyDirect, acceptCurrentHighest } from '../api/auction.js'
+import { getSellerProfile } from '../api/review.js'
 import { useCountdown } from '../composables/useCountdown.js'
 import { useAuth } from '../composables/useAuth.js'
 
@@ -217,22 +322,38 @@ const route     = useRoute()
 const router    = useRouter()
 const auctionId = route.params.id
 
-const { currentUser, isLoggedIn, isAdmin, isStudent } = useAuth()
+const { currentUser, isLoggedIn, isAdmin, isStudent, updateBalance } = useAuth()
 
-const auction    = ref(null)
-const loading    = ref(false)
-const refreshing = ref(false)
-const submitting = ref(false)
-const deleting   = ref(false)
-const buying     = ref(false)
-const formRef    = ref(null)
-const form       = ref({ amount: null })
+const auction         = ref(null)
+const loading         = ref(false)
+const refreshing      = ref(false)
+const submitting      = ref(false)
+const deleting        = ref(false)
+const buying          = ref(false)
+const accepting       = ref(false)
+const txDialogVisible = ref(false)
+const txResult        = ref(null)
+const formRef         = ref(null)
+const form            = ref({ amount: null })
 
-const isDirect = computed(() => auction.value?.saleType === 'DIRECT')
+const isDirect   = computed(() => auction.value?.saleType === 'DIRECT')
+const sellerInfo = ref(null)   // populated after auction load
+
+// Responsive carousel height
+const carouselHeight = ref(window.innerWidth < 600 ? '220px' : '380px')
+const onResize = () => { carouselHeight.value = window.innerWidth < 600 ? '220px' : '380px' }
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
 
 const isOwner = computed(() =>
   isStudent.value && currentUser.value?.id === auction.value?.creatorId
 )
+
+const overBalance = computed(() => {
+  const amt = Number(form.value.amount)
+  const bal = Number(currentUser.value?.balance ?? 0)
+  return Number.isFinite(amt) && amt > 0 && amt > bal
+})
 
 const { remaining, isUrgent, formatted } = useCountdown(() => auction.value?.endTime)
 
@@ -252,6 +373,16 @@ const rules = {
         }
       },
       trigger: 'blur'
+    },
+    {
+      validator(_, value, callback) {
+        if (currentUser.value && value > currentUser.value.balance) {
+          callback(new Error('出价金额不能超过您的账户余额'))
+        } else {
+          callback()
+        }
+      },
+      trigger: ['blur', 'change']
     }
   ]
 }
@@ -260,6 +391,12 @@ const reload = async (flag) => {
   flag.value = true
   try {
     auction.value = await getAuction(auctionId)
+    // Load seller profile in the background after auction arrives
+    if (auction.value?.creatorId) {
+      getSellerProfile(auction.value.creatorId)
+        .then(p => { sellerInfo.value = p })
+        .catch(() => {})
+    }
   } catch {
     // global interceptor handles messaging
   } finally {
@@ -272,6 +409,11 @@ onMounted(() => reload(loading))
 const submitBid = async () => {
   try { await formRef.value.validate() } catch { return }
 
+  if (currentUser.value && form.value.amount > currentUser.value.balance) {
+    ElMessage({ type: 'error', message: '出价金额不能超过您的账户余额', duration: 3000 })
+    return
+  }
+
   submitting.value = true
   try {
     await apiBid(auctionId, currentUser.value.id, form.value.amount)
@@ -279,7 +421,7 @@ const submitBid = async () => {
     form.value.amount = null
     await reload(refreshing)
   } catch {
-    // 403 / 409 / 500 already surfaced by http.js interceptor
+    // 403 / 409 / 400 already surfaced by http.js interceptor
   } finally {
     submitting.value = false
   }
@@ -301,16 +443,43 @@ const runDelete = async (successMsg) => {
 const adminDelete = () => runDelete('管理员已强制下架该拍卖。')
 const ownerDelete = () => runDelete('您的拍卖已取消。')
 
+function showTxDialog(order, auctionTitle) {
+  const amount = Number(order.amount)
+  txResult.value = {
+    amount,
+    fee: +(amount * 0.05).toFixed(2),
+    sellerReceives: +(amount * 0.95).toFixed(2),
+    title: auctionTitle
+  }
+  txDialogVisible.value = true
+}
+
 const submitBuy = async () => {
   buying.value = true
   try {
-    await buyDirect(auctionId)
-    ElMessage({ type: 'success', message: '购买成功！商品已归您所有。', duration: 3500 })
-    router.push('/')
+    const order = await buyDirect(auctionId)
+    updateBalance(Number(currentUser.value?.balance ?? 0) - Number(order.amount))
+    showTxDialog(order, auction.value.title)
+    await reload(refreshing)
   } catch {
     // 400 "Insufficient balance" → http.js interceptor shows 余额不足…
   } finally {
     buying.value = false
+  }
+}
+
+const submitAcceptHighest = async () => {
+  accepting.value = true
+  try {
+    const order = await acceptCurrentHighest(auctionId)
+    const sellerReceives = +(Number(order.amount) * 0.95).toFixed(2)
+    updateBalance(Number(currentUser.value?.balance ?? 0) + sellerReceives)
+    showTxDialog(order, auction.value.title)
+    await reload(refreshing)
+  } catch {
+    // interceptor handles error display
+  } finally {
+    accepting.value = false
   }
 }
 </script>
@@ -322,6 +491,50 @@ const submitBuy = async () => {
 .detail-head    { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .auction-title  { margin: 0; font-size: 22px; font-weight: 700; color: #1d3557; }
 .description    { color: #606266; line-height: 1.75; margin: 0 0 22px; }
+
+/* ── Image carousel ── */
+.image-carousel { margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
+.carousel-img   {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #f5f5f5;
+}
+
+/* ── Seller chip ── */
+.seller-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .18s, border-color .18s;
+  max-width: 320px;
+}
+.seller-chip:hover { background: #f5f7fa; border-color: #409eff; }
+
+.seller-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid #e4e7ed;
+}
+.seller-avatar-fallback {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: #e4e7ed;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #909399;
+  flex-shrink: 0;
+}
+.seller-text   { display: flex; flex-direction: column; gap: 2px; }
+.seller-name   { font-weight: 600; font-size: 14px; color: #303133; }
+.seller-rate   { margin: 0; }
+.seller-review-count { font-size: 11px; color: #909399; }
+.seller-arrow  { color: #c0c4cc; margin-left: auto; font-size: 14px; }
 .metrics        { margin-bottom: 8px; }
 .current-price  { font-size: 22px; font-weight: 700; color: #e6a23c; }
 .countdown-display {

@@ -61,6 +61,28 @@ CREATE TABLE IF NOT EXISTS orders (
 -- Migration: allow bid_id to be NULL for direct-sale orders.
 ALTER TABLE orders MODIFY COLUMN bid_id BIGINT NULL;
 
+-- Image / profile migrations (safe to re-run on MySQL 8.0.3+)
+ALTER TABLE users    ADD COLUMN avatar_url VARCHAR(500) NULL;
+ALTER TABLE users    ADD COLUMN bio        VARCHAR(200) NULL;
+ALTER TABLE auctions ADD COLUMN image_urls TEXT         NULL;
+
+-- Seller-profile / review system migrations
+ALTER TABLE users ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id          BIGINT   AUTO_INCREMENT PRIMARY KEY,
+    order_id    BIGINT   NOT NULL,
+    reviewer_id BIGINT   NOT NULL,
+    reviewee_id BIGINT   NOT NULL,
+    rating      TINYINT  NOT NULL,
+    comment     TEXT,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_order_reviewer (order_id, reviewer_id),
+    FOREIGN KEY (order_id)    REFERENCES orders (id),
+    FOREIGN KEY (reviewer_id) REFERENCES users  (id),
+    FOREIGN KEY (reviewee_id) REFERENCES users  (id)
+);
+
 -- Default administrator account (INSERT IGNORE is idempotent on the UNIQUE username column)
 INSERT IGNORE INTO users (username, password, role, balance)
 VALUES ('admin', 'admin123', 'ADMIN', 999999.00);

@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> implements AuctionService {
+
+    private static final BigDecimal FEE_RATE = new BigDecimal("0.05");
 
     private final BidMapper   bidMapper;
     private final OrderMapper orderMapper;
@@ -49,6 +52,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         LambdaQueryWrapper<Auction> q = new LambdaQueryWrapper<Auction>()
                 .eq(Auction::getStatus, AuctionStatus.ACTIVE)
                 .gt(Auction::getEndTime, LocalDateTime.now())
+                .eq(f.getCreatorId() != null, Auction::getCreatorId, f.getCreatorId())
                 .eq(f.getCategory() != null && !f.getCategory().isBlank(), Auction::getCategory, f.getCategory())
                 .eq(type != null, Auction::getSaleType, type)
                 .ge(f.getMinPrice() != null, Auction::getCurrentPrice, f.getMinPrice())
@@ -130,6 +134,12 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
                     "Bid amount " + amount + " must be higher than current price " + auction.getCurrentPrice());
         }
 
+        // 400: bidder must have sufficient balance to cover the bid
+        User bidder = userMapper.selectById(bidderId);
+        if (bidder == null || bidder.getBalance().compareTo(amount) < 0) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "出价金额不能超过您的账户余额");
+        }
+
         // --- all checks passed; writes are atomic within this transaction ---
 
         Bid bid = new Bid();
@@ -190,6 +200,10 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         auction.setCategory(request.getCategory() != null ? request.getCategory() : "Others");
         SaleType saleType = request.getSaleType() != null ? request.getSaleType() : SaleType.AUCTION;
         auction.setSaleType(saleType);
+        // Persist comma-separated image URLs when provided
+        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
+            auction.setImageUrls(String.join(",", request.getImageUrls()));
+        }
 
         // Direct-sale items don't expire — use a far-future sentinel if no endTime is provided.
         if (saleType == SaleType.DIRECT && auction.getEndTime() == null) {
@@ -261,19 +275,20 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
             throw new ServiceException(HttpStatus.NOT_FOUND, "Bid not found on this auction");
         }
 
-        // Step 1: Check buyer (bidder) has sufficient balance
-        BigDecimal price = bid.getAmount();
-        Long buyerId = bid.getBidderId();
-        User buyer = userMapper.selectById(buyerId);
-        if (buyer == null || buyer.getBalance().compareTo(price) < 0) {
+        BigDecimal price  = bid.getAmount();
+        Long       buyerId = bid.getBidderId();
+
+        // Atomic check-and-deduct: the WHERE clause enforces balance >= price so
+        // two concurrent accept-bid calls cannot both succeed for the same bidder.
+        int deducted = userMapper.deductBalanceIfSufficient(buyerId, price);
+        if (deducted == 0) {
             throw new ServiceException(HttpStatus.BAD_REQUEST, "Insufficient balance");
         }
 
-        // Step 2: Deduct from buyer (atomic SQL arithmetic)
-        userMapper.deductBalance(buyerId, price);
-
-        // Step 3: Credit seller
-        userMapper.addBalance(auction.getCreatorId(), price);
+        // Credit seller (platform retains 5% fee implicitly)
+        BigDecimal sellerReceives = price.multiply(BigDecimal.ONE.subtract(FEE_RATE))
+                .setScale(2, RoundingMode.HALF_UP);
+        userMapper.addBalance(auction.getCreatorId(), sellerReceives);
 
         // Step 4: Close auction and persist order
         auction.setStatus(AuctionStatus.SOLD);
@@ -290,6 +305,32 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         orderMapper.insert(order);
 
         return order;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Order acceptCurrentHighestBid(Long auctionId) {
+        Auction auction = getAuctionById(auctionId);
+
+        Long callerId = UserContext.get().userId();
+        if (!auction.getCreatorId().equals(callerId)) {
+            throw new ServiceException(HttpStatus.FORBIDDEN, "Only the auction owner can accept a bid");
+        }
+        if (auction.getStatus() != AuctionStatus.ACTIVE) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST,
+                    "Auction is not active (status: " + auction.getStatus() + ")");
+        }
+        if (auction.getSaleType() != SaleType.AUCTION) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST,
+                    "Direct sale items cannot use accept-highest-bid");
+        }
+
+        Bid highest = bidMapper.selectHighestBid(auctionId);
+        if (highest == null) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "当前没有出价，无法成交");
+        }
+
+        return acceptBid(auctionId, highest.getId());
     }
 
     @Override
@@ -376,7 +417,12 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
 
         return orders.stream()
                 .filter(o -> auctionMap.containsKey(o.getAuctionId()))
-                .map(o -> new PurchasedItem(auctionMap.get(o.getAuctionId()), o.getAmount(), o.getCreatedAt()))
+                .map(o -> new PurchasedItem(
+                        o.getId(),
+                        o.getSellerId(),
+                        auctionMap.get(o.getAuctionId()),
+                        o.getAmount(),
+                        o.getCreatedAt()))
                 .toList();
     }
 
@@ -399,18 +445,19 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
             throw new ServiceException(HttpStatus.FORBIDDEN, "You cannot purchase your own listing");
         }
 
-        // Step 1: Check buyer has sufficient balance
         BigDecimal price = auction.getCurrentPrice();
-        User buyer = userMapper.selectById(buyerId);
-        if (buyer == null || buyer.getBalance().compareTo(price) < 0) {
+
+        // Atomic check-and-deduct: the WHERE clause enforces balance >= price so
+        // two concurrent buy calls for the same item cannot both drain the buyer.
+        int deducted = userMapper.deductBalanceIfSufficient(buyerId, price);
+        if (deducted == 0) {
             throw new ServiceException(HttpStatus.BAD_REQUEST, "Insufficient balance");
         }
 
-        // Step 2: Deduct from buyer (atomic SQL arithmetic, no lost-update risk)
-        userMapper.deductBalance(buyerId, price);
-
-        // Step 3: Credit seller
-        userMapper.addBalance(auction.getCreatorId(), price);
+        // Credit seller (platform retains 5% fee implicitly)
+        BigDecimal sellerReceives = price.multiply(BigDecimal.ONE.subtract(FEE_RATE))
+                .setScale(2, RoundingMode.HALF_UP);
+        userMapper.addBalance(auction.getCreatorId(), sellerReceives);
 
         // Step 4: Mark auction SOLD and record order
         auction.setStatus(AuctionStatus.SOLD);

@@ -8,18 +8,21 @@ import AdminView          from '../views/AdminView.vue'
 import CreateAuctionView  from '../views/CreateAuctionView.vue'
 import ProfileView        from '../views/ProfileView.vue'
 import DirectSaleView     from '../views/DirectSaleView.vue'
+import SellerProfileView  from '../views/SellerProfileView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/',                 component: HomeView,          meta: { requiresAuth: true } },
-    { path: '/auctions/:id',     component: AuctionDetail,     meta: { requiresAuth: true } },
-    { path: '/market',           component: DirectSaleView,    meta: { requiresAuth: true } },
-    { path: '/publish',          component: CreateAuctionView, meta: { requiresAuth: true } },
-    { path: '/profile',          component: ProfileView,       meta: { requiresAuth: true } },
-    { path: '/login',            component: LoginView,         meta: { guestOnly: true } },
-    { path: '/register',         component: RegisterView,      meta: { guestOnly: true } },
-    { path: '/admin/dashboard',  component: AdminView,         meta: { requiresAuth: true, requiresAdmin: true } }
+    { path: '/',                    component: HomeView,          meta: { requiresAuth: true } },
+    { path: '/auctions/:id',        component: AuctionDetail,     meta: { requiresAuth: true } },
+    { path: '/market',              component: DirectSaleView,    meta: { requiresAuth: true } },
+    { path: '/publish',             component: CreateAuctionView, meta: { requiresAuth: true } },
+    { path: '/profile',             component: ProfileView,       meta: { requiresAuth: true } },
+    // Public seller profile — /profile/:userId (no auth required)
+    { path: '/profile/:userId',     component: SellerProfileView },
+    { path: '/login',               component: LoginView,         meta: { guestOnly: true } },
+    { path: '/register',            component: RegisterView,      meta: { guestOnly: true } },
+    { path: '/admin/dashboard',     component: AdminView,         meta: { requiresAuth: true, requiresAdmin: true } }
   ]
 })
 

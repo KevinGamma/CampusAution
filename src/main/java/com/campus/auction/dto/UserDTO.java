@@ -22,6 +22,12 @@ public class UserDTO {
 
     private UserRole role;
 
+    /** URL path of the user's avatar image. Null when not set. */
+    private String avatarUrl;
+
+    /** Short personal bio. Null when not set. */
+    private String bio;
+
     /** Maps a {@link User} entity to a safe DTO, stripping the password. */
     public static UserDTO from(User user) {
         UserDTO dto = new UserDTO();
@@ -29,6 +35,8 @@ public class UserDTO {
         dto.setUsername(user.getUsername());
         dto.setBalance(user.getBalance());
         dto.setRole(user.getRole());
+        dto.setAvatarUrl(user.getAvatarUrl());
+        dto.setBio(user.getBio());
         return dto;
     }
 }

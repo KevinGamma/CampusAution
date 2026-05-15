@@ -9,7 +9,8 @@ export default defineConfig({
       // Forward API paths to the Spring Boot backend
       '/auctions': { target: 'http://localhost:8080', changeOrigin: true },
       '/users':    { target: 'http://localhost:8080', changeOrigin: true },
-      '/admin':    { target: 'http://localhost:8080', changeOrigin: true }
+      '/admin':    { target: 'http://localhost:8080', changeOrigin: true },
+      '/api':      { target: 'http://localhost:8080', changeOrigin: true }
     }
   }
 })

@@ -27,19 +27,27 @@
           <router-link to="/market" class="nav-link market-link direct-link">直购市场</router-link>
         </template>
 
-        <!-- ── Authenticated: balance chip + user chip + logout ── -->
+        <!-- ── Authenticated: balance chip + user chip (with avatar) + logout ── -->
         <template v-if="isLoggedIn">
           <el-tag v-if="isStudent" type="success" effect="plain" class="balance-chip">
             ¥{{ currentUser.balance?.toFixed(2) ?? '0.00' }}
           </el-tag>
-          <el-tag
-            :type="isAdmin ? 'danger' : 'success'"
-            effect="dark"
-            class="user-chip"
-          >
-            {{ currentUser.username }}
-            <span class="role-badge">{{ isAdmin ? '管理员' : '学生' }}</span>
-          </el-tag>
+          <router-link to="/profile" class="user-chip-link">
+            <div class="user-chip-inner">
+              <!-- Avatar thumbnail (shown only when user has uploaded one) -->
+              <img
+                v-if="currentUser.avatarUrl"
+                :src="currentUser.avatarUrl"
+                class="nav-avatar"
+                :alt="currentUser.username"
+              />
+              <div v-else class="nav-avatar-fallback">
+                {{ (currentUser.username ?? '?')[0].toUpperCase() }}
+              </div>
+              <span class="nav-username">{{ currentUser.username }}</span>
+              <span class="role-badge">{{ isAdmin ? '管理员' : '学生' }}</span>
+            </div>
+          </router-link>
           <el-button size="small" plain class="logout-btn" @click="handleLogout">
             退出登录
           </el-button>
@@ -156,8 +164,46 @@ body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Helvetica,
 }
 .direct-link:hover, .direct-link.router-link-active { background: rgba(230, 162, 60, .35); color: #fff; }
 .balance-chip { cursor: default; font-weight: 600; font-size: 13px; }
-.user-chip  { cursor: default; }
-.role-badge { margin-left: 6px; font-size: 11px; opacity: .75; }
+
+/* ── User chip with avatar ── */
+.user-chip-link {
+  text-decoration: none;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.3);
+  padding: 3px 10px 3px 4px;
+  display: flex;
+  align-items: center;
+  transition: background .2s;
+}
+.user-chip-link:hover { background: rgba(255,255,255,.12); }
+.user-chip-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(255,255,255,.4);
+}
+.nav-avatar-fallback {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.nav-username { color: #fff; font-size: 13px; font-weight: 500; }
+.role-badge   { color: rgba(255,255,255,.65); font-size: 11px; }
 .logout-btn { border-color: rgba(255,255,255,.4); color: #fff; background: transparent; }
 .logout-btn:hover { border-color: #fff; background: rgba(255,255,255,.1); }
 .no-pad { padding: 0; }

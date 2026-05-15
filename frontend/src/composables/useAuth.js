@@ -41,5 +41,17 @@ export function useAuth() {
     }
   }
 
-  return { currentUser, token, isLoggedIn, isAdmin, isStudent, login, logout, updateBalance }
+  /**
+   * Merge any set of updated fields into the persisted user object.
+   * Useful after profile updates (avatarUrl, bio) or any server-side user mutation.
+   * @param {Partial<typeof _user.value>} updatedFields
+   */
+  function updateUser(updatedFields) {
+    if (_user.value) {
+      _user.value = { ..._user.value, ...updatedFields }
+      localStorage.setItem('ca_user', JSON.stringify(_user.value))
+    }
+  }
+
+  return { currentUser, token, isLoggedIn, isAdmin, isStudent, login, logout, updateBalance, updateUser }
 }

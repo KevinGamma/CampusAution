@@ -98,6 +98,23 @@
           </el-col>
         </el-row>
 
+        <!-- Product images -->
+        <el-form-item label="商品图片（可选，最多 6 张）">
+          <el-upload
+            v-model:file-list="fileList"
+            list-type="picture-card"
+            :auto-upload="false"
+            :limit="6"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            :on-exceed="() => ElMessage.warning('最多上传 6 张图片')"
+          >
+            <el-icon><Plus /></el-icon>
+            <template #tip>
+              <div class="el-upload__tip">支持 JPG / PNG / GIF / WebP，单张不超过 10 MB</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+
         <el-form-item class="submit-row">
           <el-button
             type="primary"
@@ -118,7 +135,9 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { createAuction } from '../api/auction.js'
+import { uploadImage } from '../api/upload.js'
 
 const CATEGORIES = [
   { label: '电子产品', value: 'Electronics' },
@@ -128,9 +147,10 @@ const CATEGORIES = [
   { label: '其他类',   value: 'Others' },
 ]
 
-const router  = useRouter()
-const formRef = ref(null)
-const loading = ref(false)
+const router   = useRouter()
+const formRef  = ref(null)
+const loading  = ref(false)
+const fileList = ref([])
 
 const form = reactive({
   title:       '',
@@ -199,6 +219,15 @@ async function submit() {
 
   loading.value = true
   try {
+    // Upload any pending images first, collect the returned URL paths
+    const imageUrls = []
+    for (const f of fileList.value) {
+      if (f.raw) {
+        const url = await uploadImage(f.raw)
+        imageUrls.push(url)
+      }
+    }
+
     const payload = {
       title:       form.title,
       description: form.description,
@@ -207,6 +236,7 @@ async function submit() {
       category:    form.category,
       saleType:    form.saleType,
       endTime:     form.saleType === 'DIRECT' ? null : form.endTime,
+      imageUrls:   imageUrls.length ? imageUrls : undefined,
     }
     const auction = await createAuction(payload)
     ElMessage.success('商品发布成功！')

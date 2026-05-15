@@ -67,7 +67,8 @@ public class AuctionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String sortBy,
-            @RequestParam(required = false) String order) {
+            @RequestParam(required = false) String order,
+            @RequestParam(required = false) Long creatorId) {
 
         AuctionFilter filter = new AuctionFilter();
         filter.setKeyword(keyword);
@@ -79,6 +80,7 @@ public class AuctionController {
         filter.setEndDate(endDate);
         filter.setSortBy(sortBy);
         filter.setOrder(order);
+        filter.setCreatorId(creatorId);
 
         List<AuctionResponse> body = auctionService.listActive(filter)
                 .stream()
@@ -202,6 +204,16 @@ public class AuctionController {
     @RoleAccess(UserRole.STUDENT)
     public Result<Order> acceptBid(@PathVariable Long auctionId, @PathVariable Long bidId) {
         return Result.ok(auctionService.acceptBid(auctionId, bidId));
+    }
+
+    /**
+     * POST /auctions/{id}/accept-current-highest — owner accepts the current highest bid,
+     * closing the auction as SOLD without specifying a bid ID.
+     */
+    @PostMapping("/{id}/accept-current-highest")
+    @RoleAccess(UserRole.STUDENT)
+    public Result<Order> acceptCurrentHighestBid(@PathVariable Long id) {
+        return Result.ok(auctionService.acceptCurrentHighestBid(id));
     }
 
     /**

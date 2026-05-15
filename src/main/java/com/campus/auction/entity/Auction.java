@@ -36,4 +36,10 @@ public class Auction {
     private String category;
 
     private SaleType saleType;
+
+    /**
+     * Comma-separated list of image URL paths uploaded for this listing,
+     * e.g. "/api/images/uuid1.jpg,/api/images/uuid2.jpg". Nullable.
+     */
+    private String imageUrls;
 }

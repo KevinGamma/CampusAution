@@ -5,7 +5,9 @@
       "Bash(Select-Object FullName)",
       "Bash(Format-Table -AutoSize)",
       "Bash(grep -E \"\\\\.\\(java|xml|yml|yaml|sql\\)$\")",
-      "Bash(Get-ChildItem -Path \"D:\\\\IdeaProjects\\\\CampusAution\\\\frontend\\\\src\" -Recurse -Name)"
+      "Bash(Get-ChildItem -Path \"D:\\\\IdeaProjects\\\\CampusAution\\\\frontend\\\\src\" -Recurse -Name)",
+      "Bash(Get-ChildItem -Path \"D:\\\\IdeaProjects\\\\CampusAution\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20)"
     ]
   }
 }

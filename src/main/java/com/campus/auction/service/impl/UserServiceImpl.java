@@ -2,12 +2,15 @@ package com.campus.auction.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.auction.context.UserContext;
+import com.campus.auction.dto.SellerProfileResponse;
 import com.campus.auction.dto.UserDTO;
 import com.campus.auction.entity.User;
 import com.campus.auction.enums.UserRole;
 import com.campus.auction.exception.ServiceException;
 import com.campus.auction.mapper.UserMapper;
+import com.campus.auction.service.ReviewService;
 import com.campus.auction.service.UserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 
 @Service
+@RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+
+    private final ReviewService reviewService;
 
     @Override
     public UserDTO login(String username, String password) {
@@ -58,5 +64,38 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         Long userId = UserContext.get().userId();
         getBaseMapper().addBalance(userId, amount);
         return UserDTO.from(getById(userId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserDTO updateProfile(String avatarUrl, String bio) {
+        Long userId = UserContext.get().userId();
+        User user = getById(userId);
+        if (user == null) {
+            throw new ServiceException(HttpStatus.NOT_FOUND, "User not found");
+        }
+        if (avatarUrl != null) user.setAvatarUrl(avatarUrl);
+        if (bio       != null) user.setBio(bio);
+        updateById(user);
+        return UserDTO.from(user);
+    }
+
+    @Override
+    public SellerProfileResponse getSellerProfile(Long userId) {
+        User user = getById(userId);
+        if (user == null) {
+            throw new ServiceException(HttpStatus.NOT_FOUND, "User not found: " + userId);
+        }
+        Double avgRating   = reviewService.getAverageRating(userId);
+        long   reviewCount = reviewService.getReviewCount(userId);
+        return new SellerProfileResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getAvatarUrl(),
+                user.getBio(),
+                avgRating,
+                reviewCount,
+                user.getCreatedAt()
+        );
     }
 }

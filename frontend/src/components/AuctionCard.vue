@@ -1,5 +1,10 @@
 <template>
   <el-card class="auction-card" shadow="hover" @click="$emit('click')">
+    <!-- Product thumbnail (shown only when at least one image is available) -->
+    <div v-if="firstImage" class="card-thumb-wrap">
+      <img :src="firstImage" :alt="auction.title" class="card-thumb" />
+    </div>
+
     <template #header>
       <div class="card-head">
         <span class="card-title" :title="auction.title">{{ auction.title }}</span>
@@ -54,7 +59,12 @@ const props = defineProps({
 })
 defineEmits(['click'])
 
-const isDirect = computed(() => props.auction.saleType === 'DIRECT')
+const isDirect   = computed(() => props.auction.saleType === 'DIRECT')
+const firstImage = computed(() => {
+  const urls = props.auction.imageUrls
+  if (Array.isArray(urls) && urls.length) return urls[0]
+  return null
+})
 
 const { isUrgent, formatted } = useCountdown(() => props.auction.endTime)
 
@@ -64,8 +74,22 @@ const statusType   = computed(() => STATUS_TYPE[props.auction.status] ?? 'info')
 </script>
 
 <style scoped>
-.auction-card { cursor: pointer; transition: transform .2s, box-shadow .2s; border-radius: 8px; }
+.auction-card { cursor: pointer; transition: transform .2s, box-shadow .2s; border-radius: 8px; overflow: hidden; }
 .auction-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+
+/* ── Thumbnail ── */
+.card-thumb-wrap {
+  margin: -20px -20px 0;   /* bleed to card edges */
+  height: 160px;
+  overflow: hidden;
+  background: #f5f7fa;
+}
+.card-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 
 .card-head  { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .card-badges { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }

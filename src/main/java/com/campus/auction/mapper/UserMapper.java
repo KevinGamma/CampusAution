@@ -14,6 +14,16 @@ public interface UserMapper extends BaseMapper<User> {
     @Update("UPDATE users SET balance = balance - #{amount} WHERE id = #{id}")
     int deductBalance(@Param("id") Long id, @Param("amount") BigDecimal amount);
 
+    /**
+     * Atomically deducts {@code amount} from the user's balance only when the
+     * current balance is sufficient ({@code balance >= amount}).  Returns the
+     * number of rows updated: 1 on success, 0 when the balance would go
+     * negative (no write occurs).  This single-statement approach eliminates
+     * the TOCTOU race that a separate SELECT + UPDATE pattern introduces.
+     */
+    @Update("UPDATE users SET balance = balance - #{amount} WHERE id = #{id} AND balance >= #{amount}")
+    int deductBalanceIfSufficient(@Param("id") Long id, @Param("amount") BigDecimal amount);
+
     @Update("UPDATE users SET balance = balance + #{amount} WHERE id = #{id}")
     int addBalance(@Param("id") Long id, @Param("amount") BigDecimal amount);
 }
