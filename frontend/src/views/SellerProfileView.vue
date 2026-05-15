@@ -12,7 +12,7 @@
       sub-title="该用户资料无法找到，可能已被删除。"
     >
       <template #extra>
-        <el-button type="primary" @click="router.push('/')">返回首页</el-button>
+        <el-button type="primary" @click="router.push({ name: 'AuctionSquare' })">返回首页</el-button>
       </template>
     </el-result>
 
