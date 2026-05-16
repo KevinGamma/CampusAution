@@ -8,9 +8,9 @@ spring:
     password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
   jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
     serialization:
-      # Serialize LocalDateTime as ISO-8601 strings ("2025-05-09T18:00:00"),
-      # not as integer arrays ([2025,5,9,18,0,0]) — required by the frontend countdown timer.
       write-dates-as-timestamps: false
   servlet:
     multipart:

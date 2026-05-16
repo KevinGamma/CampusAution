@@ -91,6 +91,7 @@
                 v-model="form.endTime"
                 type="datetime"
                 placeholder="请选择截止日期和时间"
+                value-format="YYYY-MM-DD HH:mm:ss"
                 :disabled-date="isPastDate"
                 style="width: 100%"
               />
