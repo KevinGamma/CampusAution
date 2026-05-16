@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> implements AuctionService {
 
     private static final BigDecimal FEE_RATE = new BigDecimal("0.05");
+    private static final ZoneId     CST      = ZoneId.of("Asia/Shanghai");
 
     private final BidMapper   bidMapper;
     private final OrderMapper orderMapper;
@@ -51,7 +53,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
 
         LambdaQueryWrapper<Auction> q = new LambdaQueryWrapper<Auction>()
                 .eq(Auction::getStatus, AuctionStatus.ACTIVE)
-                .gt(Auction::getEndTime, LocalDateTime.now())
+                .gt(Auction::getEndTime, LocalDateTime.now(CST))
                 .eq(f.getCreatorId() != null, Auction::getCreatorId, f.getCreatorId())
                 .eq(f.getCategory() != null && !f.getCategory().isBlank(), Auction::getCategory, f.getCategory())
                 .eq(type != null, Auction::getSaleType, type)
@@ -123,7 +125,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         }
 
         // 403: wall-clock time must still be within the auction window
-        if (LocalDateTime.now().isAfter(auction.getEndTime())) {
+        if (LocalDateTime.now(CST).isAfter(auction.getEndTime())) {
             throw new ServiceException(HttpStatus.FORBIDDEN,
                     "Auction has already ended (end_time: " + auction.getEndTime() + ")");
         }
@@ -146,7 +148,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         bid.setAuctionId(auctionId);
         bid.setBidderId(bidderId);
         bid.setAmount(amount);
-        bid.setTimestamp(LocalDateTime.now());
+        bid.setTimestamp(LocalDateTime.now(CST));
         bidMapper.insert(bid);
 
         auction.setCurrentPrice(amount);
@@ -184,8 +186,8 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         SaleType st = request.getSaleType() != null ? request.getSaleType() : SaleType.AUCTION;
         // Auction items must have an explicit future end time; DIRECT items default to 10 years out.
         if (st == SaleType.AUCTION
-                && (request.getEndTime() == null || !request.getEndTime().isAfter(LocalDateTime.now()))) {
-            throw new ServiceException(HttpStatus.BAD_REQUEST, "End time must be a future date");
+                && (request.getEndTime() == null || !request.getEndTime().isAfter(LocalDateTime.now(CST)))) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "截止时间必须是未来的时间");
         }
 
         Auction auction = new Auction();
@@ -207,7 +209,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
 
         // Direct-sale items don't expire — use a far-future sentinel if no endTime is provided.
         if (saleType == SaleType.DIRECT && auction.getEndTime() == null) {
-            auction.setEndTime(LocalDateTime.now().plusYears(10));
+            auction.setEndTime(LocalDateTime.now(CST).plusYears(10));
         }
 
         save(auction);
@@ -301,7 +303,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         order.setBuyerId(buyerId);
         order.setSellerId(auction.getCreatorId());
         order.setAmount(price);
-        order.setCreatedAt(LocalDateTime.now());
+        order.setCreatedAt(LocalDateTime.now(CST));
         orderMapper.insert(order);
 
         return order;
@@ -366,8 +368,8 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
                     auction.setCurrentPrice(request.getStartPrice());
                 }
                 if (request.getEndTime() != null) {
-                    if (!request.getEndTime().isAfter(LocalDateTime.now())) {
-                        throw new ServiceException(HttpStatus.BAD_REQUEST, "End time must be a future date");
+                    if (!request.getEndTime().isAfter(LocalDateTime.now(CST))) {
+                        throw new ServiceException(HttpStatus.BAD_REQUEST, "截止时间必须是未来的时间");
                     }
                     auction.setEndTime(request.getEndTime());
                 }
@@ -382,6 +384,60 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
 
         updateById(auction);
         return auction;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void settleExpiredAuction(Long auctionId) {
+        // Re-fetch with row lock to guard against concurrent scheduler runs
+        Auction auction = lambdaQuery()
+                .eq(Auction::getId, auctionId)
+                .last("FOR UPDATE")
+                .one();
+        if (auction == null || auction.getStatus() != AuctionStatus.ACTIVE) return;
+
+        long bidCount = bidMapper.selectCount(
+                new LambdaQueryWrapper<Bid>().eq(Bid::getAuctionId, auctionId));
+
+        if (bidCount > 0) {
+            Bid highest = bidMapper.selectHighestBid(auctionId);
+            if (highest == null) {
+                cancelAuctionInternal(auction);
+                return;
+            }
+
+            int deducted = userMapper.deductBalanceIfSufficient(highest.getBidderId(), highest.getAmount());
+            if (deducted == 0) {
+                // Winning bidder has insufficient balance — cancel rather than hanging indefinitely
+                cancelAuctionInternal(auction);
+                return;
+            }
+
+            BigDecimal sellerReceives = highest.getAmount()
+                    .multiply(BigDecimal.ONE.subtract(FEE_RATE))
+                    .setScale(2, RoundingMode.HALF_UP);
+            userMapper.addBalance(auction.getCreatorId(), sellerReceives);
+
+            auction.setStatus(AuctionStatus.SOLD);
+            auction.setCurrentPrice(highest.getAmount());
+            updateById(auction);
+
+            Order order = new Order();
+            order.setAuctionId(auctionId);
+            order.setBidId(highest.getId());
+            order.setBuyerId(highest.getBidderId());
+            order.setSellerId(auction.getCreatorId());
+            order.setAmount(highest.getAmount());
+            order.setCreatedAt(LocalDateTime.now(CST));
+            orderMapper.insert(order);
+        } else {
+            cancelAuctionInternal(auction);
+        }
+    }
+
+    private void cancelAuctionInternal(Auction auction) {
+        auction.setStatus(AuctionStatus.CANCELLED);
+        updateById(auction);
     }
 
     @Override
@@ -469,7 +525,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
         order.setBuyerId(buyerId);
         order.setSellerId(auction.getCreatorId());
         order.setAmount(price);
-        order.setCreatedAt(LocalDateTime.now());
+        order.setCreatedAt(LocalDateTime.now(CST));
         orderMapper.insert(order);
 
         return order;
