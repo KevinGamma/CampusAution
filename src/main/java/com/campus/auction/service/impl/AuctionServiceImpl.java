@@ -360,7 +360,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
             if (bidCount > 0) {
                 if (request.getStartPrice() != null || request.getEndTime() != null) {
                     throw new ServiceException(HttpStatus.BAD_REQUEST,
-                            "Cannot change price or end time after bids have been placed");
+                            "已有用户出价，无法修改价格与截止时间");
                 }
             } else {
                 if (request.getStartPrice() != null) {
@@ -380,6 +380,12 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
                 auction.setStartPrice(request.getStartPrice());
                 auction.setCurrentPrice(request.getStartPrice());
             }
+        }
+
+        if (request.getImageUrls() != null) {
+            auction.setImageUrls(request.getImageUrls().isEmpty()
+                    ? null
+                    : String.join(",", request.getImageUrls()));
         }
 
         updateById(auction);

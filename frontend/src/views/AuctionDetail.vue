@@ -143,6 +143,17 @@
             show-icon
             class="panel-alert"
           />
+
+          <el-button
+            v-if="auction.status === 'ACTIVE'"
+            type="primary"
+            size="large"
+            class="action-btn"
+            @click="openEditDialog"
+          >
+            编辑商品
+          </el-button>
+
           <el-popconfirm
             title="确认取消该拍卖？此操作无法撤回。"
             confirm-button-text="确认取消"
@@ -281,6 +292,118 @@
     </el-card>
   </div>
 
+  <!-- Edit product dialog -->
+  <el-dialog
+    v-model="editDialogVisible"
+    title="编辑商品信息"
+    width="560px"
+    :close-on-click-modal="false"
+  >
+    <el-alert
+      v-if="editLocked"
+      title="该拍卖已有用户出价，价格与截止时间无法修改。"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 16px"
+    />
+
+    <el-form
+      ref="editFormRef"
+      :model="editForm"
+      label-position="top"
+      size="default"
+    >
+      <el-form-item
+        label="商品名称"
+        prop="title"
+        :rules="[{ required: true, message: '请输入商品名称', trigger: 'blur' }]"
+      >
+        <el-input v-model="editForm.title" />
+      </el-form-item>
+
+      <el-form-item label="详细描述" prop="description">
+        <el-input v-model="editForm.description" type="textarea" :rows="3" />
+      </el-form-item>
+
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="分类" prop="category">
+            <el-select v-model="editForm.category" style="width: 100%">
+              <el-option
+                v-for="cat in CATEGORIES"
+                :key="cat.value"
+                :label="cat.label"
+                :value="cat.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="数量" prop="quantity">
+            <el-input-number v-model="editForm.quantity" :min="1" :precision="0" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item :label="auction?.saleType === 'DIRECT' ? '售价（¥）' : '起拍价（¥）'" prop="startPrice">
+            <el-tooltip
+              :disabled="!editLocked"
+              content="已有出价，价格无法修改"
+              placement="top"
+            >
+              <el-input-number
+                v-model="editForm.startPrice"
+                :min="0.01"
+                :precision="2"
+                :disabled="editLocked"
+                style="width: 100%"
+              />
+            </el-tooltip>
+          </el-form-item>
+        </el-col>
+        <el-col v-if="auction?.saleType === 'AUCTION'" :span="12">
+          <el-form-item label="截止时间" prop="endTime">
+            <el-tooltip
+              :disabled="!editLocked"
+              content="已有出价，截止时间无法修改"
+              placement="top"
+            >
+              <el-date-picker
+                v-model="editForm.endTime"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                :disabled="editLocked"
+                :disabled-date="isPastDate"
+                style="width: 100%"
+              />
+            </el-tooltip>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-form-item label="商品图片（最多 6 张）">
+        <el-upload
+          v-model:file-list="editFileList"
+          list-type="picture-card"
+          :auto-upload="false"
+          :limit="6"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          :on-exceed="() => ElMessage.warning('最多上传 6 张图片')"
+        >
+          <el-icon><Plus /></el-icon>
+        </el-upload>
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <el-button @click="editDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="editSubmitting" @click="submitEdit">保存更改</el-button>
+    </template>
+  </el-dialog>
+
   <!-- Transaction breakdown dialog -->
   <el-dialog
     v-model="txDialogVisible"
@@ -309,11 +432,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowRight } from '@element-plus/icons-vue'
-import { getAuction, placeBid as apiBid, deleteAuction, buyDirect, acceptCurrentHighest } from '../api/auction.js'
+import { ArrowRight, Plus } from '@element-plus/icons-vue'
+import { getAuction, placeBid as apiBid, deleteAuction, buyDirect, acceptCurrentHighest, updateAuction } from '../api/auction.js'
+import { uploadImage } from '../api/upload.js'
 import { getSellerProfile } from '../api/review.js'
 import { useCountdown } from '../composables/useCountdown.js'
 import { useAuth } from '../composables/useAuth.js'
@@ -338,6 +462,78 @@ const form            = ref({ amount: null })
 
 const isDirect   = computed(() => auction.value?.saleType === 'DIRECT')
 const sellerInfo = ref(null)   // populated after auction load
+
+// ── Edit dialog ──────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { label: '电子产品', value: 'Electronics' },
+  { label: '图书教材', value: 'Books' },
+  { label: '生活用品', value: 'Daily Use' },
+  { label: '体育器材', value: 'Sports' },
+  { label: '其他类',   value: 'Others' },
+]
+
+const editDialogVisible = ref(false)
+const editFormRef        = ref(null)
+const editSubmitting     = ref(false)
+const editFileList       = ref([])
+const editForm           = reactive({
+  title: '', description: '', category: '', quantity: 1, startPrice: null, endTime: null,
+})
+
+const editLocked = computed(() =>
+  auction.value?.saleType === 'AUCTION' && (auction.value?.bidCount ?? 0) > 0
+)
+
+function openEditDialog() {
+  const a = auction.value
+  editForm.title       = a.title
+  editForm.description = a.description
+  editForm.category    = a.category
+  editForm.quantity    = a.quantity
+  editForm.startPrice  = Number(a.startPrice)
+  editForm.endTime     = a.endTime ?? null
+  editFileList.value   = (a.imageUrls ?? []).map((url, i) => ({
+    name: `图片 ${i + 1}`, url, status: 'success',
+  }))
+  editDialogVisible.value = true
+}
+
+async function submitEdit() {
+  try { await editFormRef.value.validate() } catch { return }
+
+  editSubmitting.value = true
+  try {
+    const imageUrls = []
+    for (const f of editFileList.value) {
+      if (f.raw) {
+        imageUrls.push(await uploadImage(f.raw))
+      } else if (f.url) {
+        imageUrls.push(f.url)
+      }
+    }
+
+    const payload = {
+      title:       editForm.title,
+      description: editForm.description,
+      category:    editForm.category,
+      quantity:    editForm.quantity,
+      imageUrls:   imageUrls.length ? imageUrls : [],
+    }
+    if (!editLocked.value) {
+      payload.startPrice = editForm.startPrice
+      payload.endTime    = editForm.endTime
+    }
+
+    await updateAuction(auctionId, payload)
+    ElMessage.success('商品信息更新成功')
+    editDialogVisible.value = false
+    await reload(refreshing)
+  } catch {
+    // http.js interceptor surfaces the error
+  } finally {
+    editSubmitting.value = false
+  }
+}
 
 // Responsive carousel height
 const carouselHeight = ref(window.innerWidth < 600 ? '220px' : '380px')
