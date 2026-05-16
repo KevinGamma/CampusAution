@@ -170,7 +170,7 @@ public class AuctionController {
      * startPrice and endTime may only be changed when no bids exist (AUCTION items).
      */
     @PutMapping("/{id}")
-    @RoleAccess(UserRole.STUDENT)
+    @RoleAccess({UserRole.STUDENT, UserRole.ADMIN})
     public Result<Auction> updateAuction(
             @PathVariable Long id,
             @RequestBody UpdateAuctionRequest request) {
