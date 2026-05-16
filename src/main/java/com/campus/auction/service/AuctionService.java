@@ -144,4 +144,12 @@ public interface AuctionService extends IService<Auction> {
      * @throws com.campus.auction.exception.ServiceException (400) if status is not ACTIVE.
      */
     void cancelAuction(Long auctionId);
+
+    /**
+     * Called by the scheduler to auto-settle a single expired AUCTION.
+     * Bypasses ownership/caller checks — for internal scheduler use only.
+     * If the auction has bids, credits the seller and marks it SOLD.
+     * If no bids exist, marks it CANCELLED.
+     */
+    void settleExpiredAuction(Long auctionId);
 }
