@@ -1,18 +1,22 @@
 package com.campus.auction.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.auction.annotation.RoleAccess;
 import com.campus.auction.common.Result;
+import com.campus.auction.context.UserContext;
 import com.campus.auction.dto.AuctionFilter;
 import com.campus.auction.dto.AuctionResponse;
+import com.campus.auction.dto.AuctionStatusRequest;
 import com.campus.auction.dto.CreateAuctionRequest;
-import com.campus.auction.dto.MyBidSummary;
+import com.campus.auction.dto.CreateOrderRequest;
+import com.campus.auction.dto.PageResponse;
 import com.campus.auction.dto.PlaceBidRequest;
-import com.campus.auction.dto.PurchasedItem;
 import com.campus.auction.dto.UpdateAuctionRequest;
 import com.campus.auction.entity.Auction;
 import com.campus.auction.entity.Bid;
 import com.campus.auction.entity.Order;
 import com.campus.auction.enums.UserRole;
+import com.campus.auction.exception.ServiceException;
 import com.campus.auction.service.AuctionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -26,23 +30,13 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/auctions")
+@RequestMapping("/api/v1/auctions")
 @RequiredArgsConstructor
 public class AuctionController {
 
     private final AuctionService auctionService;
 
-    /**
-     * GET /auctions/all — every auction in the system (ADMIN only).
-     * Used by the admin dashboard to display the full moderation table.
-     */
-    @GetMapping("/all")
-    @RoleAccess(UserRole.ADMIN)
-    public Result<List<Auction>> listAll() {
-        return Result.ok(auctionService.listAll());
-    }
-
-    /** POST /auctions — publish a new auction; creatorId and initial state set by the service. */
+    /** POST /api/v1/auctions — publish a new auction. */
     @PostMapping
     @RoleAccess(UserRole.STUDENT)
     public ResponseEntity<Result<AuctionResponse>> createAuction(@RequestBody CreateAuctionRequest request) {
@@ -51,14 +45,12 @@ public class AuctionController {
     }
 
     /**
-     * GET /auctions — active, non-expired listings with optional full-text search,
-     * price/date range filtering, and dynamic sorting.
+     * GET /api/v1/auctions — paginated active listings with optional filtering and sorting.
      *
-     * <p>All parameters are optional. Unrecognised {@code sortBy} values fall back
-     * to newest-first ordering.
+     * <p>All parameters are optional. Defaults: page=1, size=10, sort=newest-first.
      */
     @GetMapping
-    public Result<List<AuctionResponse>> listActive(
+    public Result<PageResponse<AuctionResponse>> listActive(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String saleType,
@@ -68,7 +60,9 @@ public class AuctionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String order,
-            @RequestParam(required = false) Long creatorId) {
+            @RequestParam(required = false) Long creatorId,
+            @RequestParam(defaultValue = "1")  int page,
+            @RequestParam(defaultValue = "10") int size) {
 
         AuctionFilter filter = new AuctionFilter();
         filter.setKeyword(keyword);
@@ -81,20 +75,20 @@ public class AuctionController {
         filter.setSortBy(sortBy);
         filter.setOrder(order);
         filter.setCreatorId(creatorId);
+        filter.setPage(page);
+        filter.setSize(size);
 
-        List<AuctionResponse> body = auctionService.listActive(filter)
-                .stream()
+        Page<Auction> auctionPage = auctionService.listActive(filter);
+        List<AuctionResponse> items = auctionPage.getRecords().stream()
                 .map(a -> AuctionResponse.of(a, auctionService.countBids(a.getId())))
                 .toList();
-        return Result.ok(body);
+        return Result.ok(new PageResponse<>(items, auctionPage.getTotal(),
+                auctionPage.getCurrent(), auctionPage.getSize()));
     }
 
     /**
-     * GET /auctions/{id} — auction detail with HATEOAS links and ETag caching.
-     *
-     * <p>On a match with {@code If-None-Match}, Spring sets status 304 via
-     * {@code webRequest.checkNotModified} and we return {@code null} — no body is written.
-     * On a miss we attach the computed ETag so the client can cache it.
+     * GET /api/v1/auctions/{id} — auction detail with HATEOAS links and ETag caching.
+     * Returns 304 Not Modified when the client's cached ETag is still valid.
      */
     @GetMapping("/{id}")
     public ResponseEntity<Result<AuctionResponse>> getById(
@@ -104,7 +98,6 @@ public class AuctionController {
         Auction auction = auctionService.getAuctionById(id);
         String etag = etagOf(auction);
 
-        // Returns true and sets 304 on the response when If-None-Match matches.
         if (webRequest.checkNotModified(etag)) {
             return null;
         }
@@ -116,58 +109,9 @@ public class AuctionController {
     }
 
     /**
-     * POST /auctions/{id}/bids — submit a bid. STUDENT only; admins are system overseers,
-     * not market participants.
-     * Returns 201 Created on success; 403/404/409 are handled by GlobalExceptionHandler.
-     */
-    @PostMapping("/{id}/bids")
-    @RoleAccess(UserRole.STUDENT)
-    public ResponseEntity<Result<Bid>> placeBid(
-            @PathVariable Long id,
-            @RequestBody PlaceBidRequest request) {
-        Bid bid = auctionService.placeBid(id, request.getBidderId(), request.getAmount());
-        return ResponseEntity.status(HttpStatus.CREATED).body(Result.created(bid));
-    }
-
-    /**
-     * POST /auctions/{id}/buy — instant purchase of a DIRECT-sale item at its fixed price.
-     * STUDENT only; admins may not participate in trading.
-     * Returns the created Order record.
-     */
-    @PostMapping("/{id}/buy")
-    @RoleAccess(UserRole.STUDENT)
-    public Result<Order> buy(@PathVariable Long id) {
-        return Result.ok(auctionService.buy(id));
-    }
-
-    /** GET /auctions/my-items — auctions created by the authenticated user, with bid counts. */
-    @GetMapping("/my-items")
-    @RoleAccess({UserRole.STUDENT, UserRole.ADMIN})
-    public Result<List<AuctionResponse>> listMyItems() {
-        return Result.ok(auctionService.listMyItems()
-                .stream()
-                .map(a -> AuctionResponse.of(a, auctionService.countBids(a.getId())))
-                .toList());
-    }
-
-    /** GET /auctions/my-bids — auctions the authenticated user has bid on, with their top bid. */
-    @GetMapping("/my-bids")
-    @RoleAccess({UserRole.STUDENT, UserRole.ADMIN})
-    public Result<List<MyBidSummary>> listMyBids() {
-        return Result.ok(auctionService.listMyBids());
-    }
-
-    /** GET /auctions/purchased — all items bought by the current user, newest first. */
-    @GetMapping("/purchased")
-    @RoleAccess({UserRole.STUDENT, UserRole.ADMIN})
-    public Result<List<PurchasedItem>> listPurchased() {
-        return Result.ok(auctionService.listPurchased());
-    }
-
-    /**
-     * PUT /auctions/{id} — update an ACTIVE listing owned by the current user.
+     * PUT /api/v1/auctions/{id} — full content update of an ACTIVE listing owned by the caller.
      * title, description, category, quantity are always editable.
-     * startPrice and endTime may only be changed when no bids exist (AUCTION items).
+     * startPrice and endTime may only change on AUCTION items with zero bids.
      */
     @PutMapping("/{id}")
     @RoleAccess({UserRole.STUDENT, UserRole.ADMIN})
@@ -178,17 +122,43 @@ public class AuctionController {
     }
 
     /**
-     * POST /auctions/{id}/cancel — cancel an ACTIVE listing, removing it from the marketplace.
-     * Only the listing's creator may cancel it.
+     * PATCH /api/v1/auctions/{id}/status — state transition.
+     * <ul>
+     *   <li>{@code {"status":"CANCELLED"}} — owner cancels an ACTIVE listing.</li>
+     *   <li>{@code {"status":"SOLD"}} — owner accepts the current highest bid, closing the auction.</li>
+     * </ul>
      */
-    @PostMapping("/{id}/cancel")
+    @PatchMapping("/{id}/status")
     @RoleAccess(UserRole.STUDENT)
-    public Result<Void> cancelAuction(@PathVariable Long id) {
-        auctionService.cancelAuction(id);
+    public Result<Void> updateStatus(
+            @PathVariable Long id,
+            @RequestBody AuctionStatusRequest request) {
+        if ("CANCELLED".equalsIgnoreCase(request.getStatus())) {
+            auctionService.cancelAuction(id);
+        } else if ("SOLD".equalsIgnoreCase(request.getStatus())) {
+            auctionService.acceptCurrentHighestBid(id);
+        } else {
+            throw new ServiceException(HttpStatus.BAD_REQUEST,
+                    "Invalid status transition. Allowed values: CANCELLED, SOLD");
+        }
         return Result.empty();
     }
 
-    /** GET /auctions/{id}/bids — all bids for an auction, newest first. */
+    /**
+     * POST /api/v1/auctions/{id}/bids — submit a bid. Bidder identity comes from the JWT.
+     * Returns 201 Created on success.
+     */
+    @PostMapping("/{id}/bids")
+    @RoleAccess(UserRole.STUDENT)
+    public ResponseEntity<Result<Bid>> placeBid(
+            @PathVariable Long id,
+            @RequestBody PlaceBidRequest request) {
+        Long bidderId = UserContext.get().userId();
+        Bid bid = auctionService.placeBid(id, bidderId, request.getAmount());
+        return ResponseEntity.status(HttpStatus.CREATED).body(Result.created(bid));
+    }
+
+    /** GET /api/v1/auctions/{id}/bids — all bids for an auction, newest first. */
     @GetMapping("/{id}/bids")
     @RoleAccess({UserRole.STUDENT, UserRole.ADMIN})
     public Result<List<Bid>> listBids(@PathVariable Long id) {
@@ -196,35 +166,34 @@ public class AuctionController {
     }
 
     /**
-     * POST /auctions/{auctionId}/accept-bid/{bidId} — owner accepts a bid, closing the auction as SOLD.
-     * STUDENT only; admins manage the platform but do not own or sell items.
-     * Returns the created Order record confirming the transaction.
-     */
-    @PostMapping("/{auctionId}/accept-bid/{bidId}")
-    @RoleAccess(UserRole.STUDENT)
-    public Result<Order> acceptBid(@PathVariable Long auctionId, @PathVariable Long bidId) {
-        return Result.ok(auctionService.acceptBid(auctionId, bidId));
-    }
-
-    /**
-     * POST /auctions/{id}/accept-current-highest — owner accepts the current highest bid,
-     * closing the auction as SOLD without specifying a bid ID.
-     */
-    @PostMapping("/{id}/accept-current-highest")
-    @RoleAccess(UserRole.STUDENT)
-    public Result<Order> acceptCurrentHighestBid(@PathVariable Long id) {
-        return Result.ok(auctionService.acceptCurrentHighestBid(id));
-    }
-
-    /**
-     * DELETE /auctions/{id} — remove an auction and all its bids.
+     * POST /api/v1/auctions/{id}/orders — create an order for this auction.
      *
-     * <p>Role rules enforced by the service layer (caller identity comes from the JWT via
-     * {@link com.campus.auction.context.UserContext}):
      * <ul>
-     *   <li>ADMIN — may delete any auction for moderation.</li>
-     *   <li>STUDENT — may only delete their own auction (403 otherwise).</li>
+     *   <li>No body or empty body → DIRECT-sale instant purchase by the current user.</li>
+     *   <li>{@code {"bidId": 123}} → seller accepts that specific bid (AUCTION type).</li>
+     *   <li>{@code {"acceptHighest": true}} → seller accepts the current highest bid.</li>
      * </ul>
+     * Returns 201 Created with the persisted Order on success.
+     */
+    @PostMapping("/{id}/orders")
+    @RoleAccess(UserRole.STUDENT)
+    public ResponseEntity<Result<Order>> createOrder(
+            @PathVariable Long id,
+            @RequestBody(required = false) CreateOrderRequest request) {
+        Order order;
+        if (request != null && request.getBidId() != null) {
+            order = auctionService.acceptBid(id, request.getBidId());
+        } else if (request != null && Boolean.TRUE.equals(request.getAcceptHighest())) {
+            order = auctionService.acceptCurrentHighestBid(id);
+        } else {
+            order = auctionService.buy(id);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(Result.created(order));
+    }
+
+    /**
+     * DELETE /api/v1/auctions/{id} — remove an auction and all its bids.
+     * ADMIN may delete any; STUDENT may only delete their own.
      */
     @DeleteMapping("/{id}")
     @RoleAccess({UserRole.ADMIN, UserRole.STUDENT})
@@ -233,10 +202,6 @@ public class AuctionController {
         return Result.empty();
     }
 
-    /**
-     * Fingerprints every mutable field of an auction so that any change — a new bid raising
-     * {@code currentPrice}, a status transition, etc. — produces a different ETag value.
-     */
     private static String etagOf(Auction a) {
         String fingerprint = a.getId() + "~" + a.getTitle() + "~" + a.getDescription()
                 + "~" + a.getStartPrice() + "~" + a.getCurrentPrice()

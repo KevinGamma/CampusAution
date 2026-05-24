@@ -176,8 +176,8 @@
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listAll, deleteAuction } from '../api/auction.js'
-import { seedData } from '../api/admin.js'
+import { deleteAuction } from '../api/auction.js'
+import { listAll, seedData } from '../api/admin.js'
 
 const STATUS_TYPE  = { ACTIVE: 'success', FINISHED: 'info', SOLD: 'warning', CANCELLED: 'danger' }
 const STATUS_LABEL = { ACTIVE: '进行中', FINISHED: '已结束', SOLD: '已售出', CANCELLED: '已取消' }

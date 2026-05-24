@@ -1,6 +1,7 @@
 package com.campus.auction.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.auction.context.UserContext;
 import com.campus.auction.dto.AuctionFilter;
@@ -47,7 +48,26 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
     private final UserMapper  userMapper;
 
     @Override
-    public List<Auction> listActive(AuctionFilter f) {
+    public Page<Auction> listActive(AuctionFilter f) {
+        LambdaQueryWrapper<Auction> q = buildActiveQuery(f);
+
+        // Count total matching records first (no LIMIT clause yet)
+        long total = count(q);
+
+        // Build a fresh wrapper with LIMIT/OFFSET appended for the data query.
+        // Using int parameters is safe from SQL injection here.
+        LambdaQueryWrapper<Auction> pagedQ = buildActiveQuery(f);
+        int offset = (f.getPage() - 1) * f.getSize();
+        pagedQ.last("LIMIT " + f.getSize() + " OFFSET " + offset);
+
+        List<Auction> records = total > 0 ? list(pagedQ) : List.of();
+
+        Page<Auction> result = new Page<>(f.getPage(), f.getSize(), total);
+        result.setRecords(records);
+        return result;
+    }
+
+    private LambdaQueryWrapper<Auction> buildActiveQuery(AuctionFilter f) {
         SaleType type = (f.getSaleType() != null && !f.getSaleType().isBlank())
                 ? SaleType.valueOf(f.getSaleType().toUpperCase()) : null;
 
@@ -64,13 +84,11 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
                 .le(f.getEndDate() != null, Auction::getEndTime,
                         f.getEndDate() != null ? f.getEndDate().plusDays(1).atStartOfDay() : null);
 
-        // Full-text keyword search across title and description
         if (f.getKeyword() != null && !f.getKeyword().isBlank()) {
             String kw = f.getKeyword().trim();
             q.and(w -> w.like(Auction::getTitle, kw).or().like(Auction::getDescription, kw));
         }
 
-        // Dynamic sort — default: newest first (id DESC)
         boolean asc = "ASC".equalsIgnoreCase(f.getOrder());
         if ("currentPrice".equals(f.getSortBy())) {
             if (asc) q.orderByAsc(Auction::getCurrentPrice);
@@ -82,7 +100,7 @@ public class AuctionServiceImpl extends ServiceImpl<AuctionMapper, Auction> impl
             q.orderByDesc(Auction::getId);
         }
 
-        return list(q);
+        return q;
     }
 
     @Override

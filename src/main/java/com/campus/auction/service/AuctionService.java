@@ -1,5 +1,6 @@
 package com.campus.auction.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.campus.auction.dto.AuctionFilter;
 import com.campus.auction.dto.CreateAuctionRequest;
@@ -16,12 +17,11 @@ import java.util.List;
 public interface AuctionService extends IService<Auction> {
 
     /**
-     * Returns ACTIVE, non-expired auctions matching the supplied filter criteria.
+     * Returns a paginated page of ACTIVE, non-expired auctions matching the filter criteria.
      * Every field of {@code filter} is optional — null / blank values are ignored.
-     * Results are sorted according to {@code filter.sortBy} + {@code filter.order};
-     * the default ordering is newest first (id DESC).
+     * Page number and size are taken from {@code filter.page} and {@code filter.size}.
      */
-    List<Auction> listActive(AuctionFilter filter);
+    Page<Auction> listActive(AuctionFilter filter);
 
     /**
      * Returns every auction in the system regardless of status.

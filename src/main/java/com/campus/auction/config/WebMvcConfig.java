@@ -23,22 +23,20 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/**")
                 // Public endpoints that never require a token
                 .excludePathPatterns(
-                        "/users/login",
-                        "/users/register",
-                        "/api/images/**"   // served as static files — no auth required to view
+                        "/api/v1/users/login",
+                        "/api/v1/users/register",
+                        "/api/v1/images/**"   // served as static files — no auth required to view
                 );
     }
 
     /**
      * Serve uploaded images as static resources.
-     *
-     * <p>Requests to {@code GET /api/images/{filename}} are resolved directly from the
+     * Requests to {@code GET /api/v1/images/{filename}} are resolved directly from the
      * local filesystem at {@code uploadDir}/{filename} — no controller method involved.
-     * The JwtInterceptor also excludes this path, so images are publicly readable.
      */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/api/images/**")
+        registry.addResourceHandler("/api/v1/images/**")
                 .addResourceLocations("file:" + uploadDir + "/");
     }
 }

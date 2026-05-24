@@ -7,7 +7,5 @@ import java.math.BigDecimal;
 @Data
 public class PlaceBidRequest {
 
-    private Long bidderId;
-
     private BigDecimal amount;
 }

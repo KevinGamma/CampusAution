@@ -54,4 +54,10 @@ public class AuctionFilter {
      * Used by the seller profile page to display a seller's active listings.
      */
     private Long creatorId;
+
+    /** 1-based page number. Defaults to 1. */
+    private int page = 1;
+
+    /** Number of items per page. Defaults to 10. */
+    private int size = 10;
 }

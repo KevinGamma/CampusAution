@@ -612,7 +612,7 @@ const submitBid = async () => {
 
   submitting.value = true
   try {
-    await apiBid(auctionId, currentUser.value.id, form.value.amount)
+    await apiBid(auctionId, form.value.amount)
     ElMessage({ type: 'success', message: '出价成功！', duration: 3000 })
     form.value.amount = null
     await reload(refreshing)

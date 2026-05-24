@@ -6,11 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Forward API paths to the Spring Boot backend
-      '/auctions': { target: 'http://localhost:8080', changeOrigin: true },
-      '/users':    { target: 'http://localhost:8080', changeOrigin: true },
-      '/admin':    { target: 'http://localhost:8080', changeOrigin: true },
-      '/api':      { target: 'http://localhost:8080', changeOrigin: true }
+      // All API calls are now under /api/v1 — a single rule covers every endpoint.
+      '/api': { target: 'http://localhost:8080', changeOrigin: true }
     }
   }
 })
