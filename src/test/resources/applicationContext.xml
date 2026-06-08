@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Intentionally empty Spring context.
+
+  spring-boot-starter-jersey puts jersey-spring6 on the classpath, whose
+  SpringComponentProvider auto-activates under the Jersey Test Framework and
+  loads this file by default. The real application never uses XML wiring (it
+  bootstraps Jersey from the Spring Boot context), but JerseyTest has no Spring
+  Boot context, so this empty beans file satisfies the provider and lets the
+  test register its JAX-RS providers via HK2 instead.
+-->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd">
+</beans>

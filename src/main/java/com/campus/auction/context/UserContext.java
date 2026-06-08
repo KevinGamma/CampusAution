@@ -7,10 +7,10 @@ import com.campus.auction.enums.UserRole;
  *
  * <p>Lifecycle:
  * <ol>
- *   <li>{@link com.campus.auction.interceptor.JwtInterceptor#preHandle} calls {@link #set}
+ *   <li>{@link com.campus.auction.filter.JwtSecurityFilter} (request phase) calls {@link #set}
  *       after a valid JWT is verified.</li>
  *   <li>Service methods call {@link #get} to read the current user.</li>
- *   <li>{@link com.campus.auction.interceptor.JwtInterceptor#afterCompletion} calls
+ *   <li>{@link com.campus.auction.filter.JwtSecurityFilter} (response phase) calls
  *       {@link #clear} to prevent ThreadLocal leaks between pooled threads.</li>
  * </ol>
  */

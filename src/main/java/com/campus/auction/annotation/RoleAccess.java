@@ -8,8 +8,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a controller method as role-protected.
- * {@link com.campus.auction.interceptor.JwtInterceptor} reads this annotation
+ * Marks a JAX-RS resource method as role-protected.
+ * {@link com.campus.auction.filter.JwtSecurityFilter} reads this annotation
  * on every request and rejects callers whose JWT role is not in the allowed set.
  *
  * <pre>

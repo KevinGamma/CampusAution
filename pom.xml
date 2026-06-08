@@ -18,12 +18,34 @@
 
     <properties>
         <java.version>17</java.version>
+        <!--
+          Override the Lombok version inherited from spring-boot-starter-parent 3.4.5 (1.18.36),
+          which silently no-ops its annotation processing under JDK 24+. The build/CI here runs
+          JDK 25, so pin a release that supports it. Safe to remove once the parent BOM ships a
+          JDK 25-aware Lombok. This property drives both the 'provided' dependency and the
+          maven-compiler-plugin annotationProcessorPath below.
+        -->
+        <lombok.version>1.18.46</lombok.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- JAX-RS / Jersey — replaces Spring MVC controllers incrementally.
+             Includes jersey-media-json-jackson (Jackson provider) and
+             jersey-spring6 (Spring DI bridge) automatically. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jersey</artifactId>
+        </dependency>
+
+        <!-- Multipart form-data support (file uploads) for Jersey resources. -->
+        <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-multipart</artifactId>
         </dependency>
 
         <dependency>
@@ -66,6 +88,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+          Jersey Test Framework (Grizzly2 container) — spins up the real Jersey runtime
+          on a random HTTP port, exercising the actual filters / exception mappers without
+          needing the Spring context or a live MySQL database. Version is BOM-managed.
+        -->
+        <dependency>
+            <groupId>org.glassfish.jersey.test-framework.providers</groupId>
+            <artifactId>jersey-test-framework-provider-grizzly2</artifactId>
+            <version>${jersey.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
