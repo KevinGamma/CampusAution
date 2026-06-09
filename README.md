@@ -5,6 +5,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Spring_Boot-3.4.5-6DB33F?logo=springboot" />
+  <img src="https://img.shields.io/badge/Jersey_(JAX--RS)-3.1.x-009639?logo=eclipsejakarta" />
+  <img src="https://img.shields.io/badge/JDK-25-orange?logo=openjdk" />
   <img src="https://img.shields.io/badge/Vue-3.4-4FC08D?logo=vuedotjs" />
   <img src="https://img.shields.io/badge/MyBatis--Plus-3.5.10-blue" />
   <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql" />
@@ -65,12 +67,14 @@
 
 | 技术 | 版本 | 用途 |
 |------|------|------|
-| Spring Boot | 3.4.5 | Web 框架、依赖注入、事务管理 |
+| Spring Boot | 3.4.5 | 核心生态：依赖注入、事务管理、自动配置 |
+| **Jersey (JAX-RS)** | **3.1.x** | **表现层 / 路由层**，标准 JAX-RS 资源架构（以 Servlet Filter 形式运行） |
 | MyBatis-Plus | 3.5.10.1 | ORM，Lambda 查询 DSL，行级锁 |
 | MySQL | 8.0+ | 关系型数据存储 |
 | JWT (jjwt) | 0.12.6 | 无状态身份认证（HS256，7 天有效期） |
 | Spring Transaction | — | `@Transactional` 声明式事务，ACID 保证 |
-| Lombok | — | 样板代码消除 |
+| Lombok | **1.18.46** | 样板代码消除（显式锁定版本以兼容 JDK 25） |
+| JDK | **25** | 运行环境（已验证完全兼容） |
 
 ### 前端
 
@@ -97,11 +101,15 @@
 ┌───────────────────────▼──────────────────────┐
 │              Spring Boot 3.4.5                │
 │  ┌─────────────────────────────────────────┐  │
-│  │  JwtInterceptor → @RoleAccess Guard     │  │
+│  │  Jersey Servlet Filter (JAX-RS Runtime) │  │
+│  │   • JwtSecurityFilter  (@RoleAccess)    │  │
+│  │   • ResultHttpStatusFilter              │  │
+│  │   • Service / General ExceptionMapper   │  │
+│  │   unmatched ─▶ DispatcherServlet (img)  │  │
 │  └──────────────────┬──────────────────────┘  │
 │  ┌──────────────────▼──────────────────────┐  │
-│  │  AuctionController │ UserController      │  │
-│  │  ReviewController  │ FileController      │  │
+│  │  @Path Resources  (@Component, JAX-RS)  │  │
+│  │  Auction │ User │ Review │ File │ Admin  │  │
 │  └──────────────────┬──────────────────────┘  │
 │  ┌──────────────────▼──────────────────────┐  │
 │  │  AuctionService (@Transactional)        │  │
@@ -120,6 +128,54 @@
 │  users │ auctions │ bids │ orders │ reviews   │
 └──────────────────────────────────────────────┘
 ```
+
+---
+
+## 🔌 表现层架构迁移：Spring MVC → Jersey (JAX-RS)
+
+表现层与路由层已**从 Spring MVC 完整迁移至 Jersey (JAX-RS 3.x)**，形成解耦、标准合规的 JAX-RS 资源架构；同时**完整保留 Spring Boot 核心生态**（Dependency Injection、Service 层、MyBatis Mapper）。
+
+### 路由机制：Jersey 以 Servlet Filter 运行
+
+通过 `spring.jersey.type: filter` 使 Jersey 与 Spring MVC 协同：
+
+- ✅ **优先匹配**：请求首先由 Jersey 资源按 `@Path` 端点匹配处理。
+- ↪️ **优雅回退**：未匹配的请求（如 `/api/v1/images/**` 下的静态头像 / 商品图）经 Filter 链回退至 Spring MVC 的 `DispatcherServlet`，由静态资源处理器服务。
+
+```yaml
+spring:
+  jersey:
+    type: filter   # Jersey 作为 Servlet Filter；未匹配请求回退 DispatcherServlet
+```
+
+### 核心 JAX-RS 基础设施组件（`com.campus.auction.filter`）
+
+为使 Jersey 满足企业级需求，引入 **5 个全局 Provider**：
+
+| 组件 | 实现接口 | 职责 |
+|------|----------|------|
+| **`JwtSecurityFilter`** | `ContainerRequestFilter` / `ContainerResponseFilter` | 取代 `JwtInterceptor`。通过 `@Context ResourceInfo` 从被调用方法上下文动态读取 `@RoleAccess`，执行 JWT 密码学校验与身份绑定；并在**响应阶段强制擦除 `UserContext` ThreadLocal**，杜绝内存泄漏。 |
+| **`ResultHttpStatusFilter`** | `ContainerResponseFilter` | 检查出站响应实体；若为统一信封 `Result<?>`，动态提取 `Result.code()` 并覆写 HTTP 状态行，实现业务码与 HTTP 状态同步。 |
+| **`ServiceExceptionMapper`** | `ExceptionMapper<ServiceException>` | 拦截业务异常，序列化为标准统一 `Result` JSON，而非 Jersey 默认 HTML 错误页。 |
+| **`GeneralExceptionMapper`** | `ExceptionMapper<Exception>` | 兜底拦截未处理的运行时异常，统一返回 `500` 的 `Result` JSON。 |
+| **`LocalDateParamConverter`** | `ParamConverterProvider` | 为 `java.time.LocalDate` 提供原生查询参数绑定（ISO 标准日期），取代 Spring 的 `@DateTimeFormat`。 |
+
+> 上述 Provider 均标注 `@Provider` + `@Component`，由 `JerseyConfig`（继承 `ResourceConfig`）统一注册并桥接进 Spring 容器完成依赖注入。
+
+### 高并发文件上传优化（`FileResource`）
+
+针对**堆内存压力型拒绝服务（Heap-Pressure DoS）与 OOM** 风险进行加固：
+
+- **混合阈值溢写策略（Hybrid Threshold Spill）**：小文件（≤ 2 MB）全程在内存中处理以获得最佳 I/O 速度；超过 2 MB 的文件将剩余流**动态溢写至磁盘** `Files.createTempFile` 临时块，使堆内存占用恒定。
+- **确定性生命周期**：自定义适配器 `FormDataMultipartFile` 实现 `Closeable` 并约束在 **try-with-resources** 块内，请求结束即刻清理临时文件，无需等待 JVM 关闭。
+
+### 环境、构建与测试
+
+| 项目 | 说明 |
+|------|------|
+| **JDK 兼容性** | 完全兼容 **JDK 25** |
+| **Lombok 版本锁定** | 现代 JDK 上注解处理器可能静默失效，故在 `pom.xml` 属性中显式将 Lombok 锁定至 **1.18.46**，保证注解处理成功 |
+| **测试覆盖** | 采用 **Jersey Test Framework + Grizzly2 容器** 执行真实 HTTP 集成测试（**10/10 通过**），覆盖角色鉴权（401/403）、`UserContext` 清理、`Result.code` 状态同步与异常映射 |
 
 ---
 
@@ -238,8 +294,8 @@ Auction auction = lambdaQuery()
 
 ### 环境要求
 
-- Java 17+
-- Maven 3.8+
+- JDK 17+（已在 **JDK 25** 上验证完全兼容）
+- Maven 3.8+（Lombok 已锁定 **1.18.46** 以适配新版 JDK 注解处理）
 - MySQL 8.0+
 - Node.js 18+
 
@@ -289,13 +345,14 @@ npm run build
 campus-auction/
 ├── src/main/java/com/campus/auction/
 │   ├── annotation/       # @RoleAccess 权限注解
+│   ├── config/           # JerseyConfig（ResourceConfig）/ WebMvcConfig（静态资源回退）
 │   ├── context/          # UserContext（ThreadLocal 用户信息）
-│   ├── controller/       # REST 控制器（5 个）
+│   ├── resource/         # Jersey JAX-RS 资源（5 个，@Path + @Component）
+│   ├── filter/           # JAX-RS 全局 Provider（安全 / 状态同步 / 异常映射 / 日期转换）
 │   ├── dto/              # 请求/响应 DTO（17 个）
 │   ├── entity/           # 数据实体（5 个：User/Auction/Bid/Order/Review）
 │   ├── enums/            # 枚举：UserRole / AuctionStatus / SaleType
 │   ├── exception/        # ServiceException（携带 HttpStatus）
-│   ├── interceptor/      # JwtInterceptor（认证 + 授权一体）
 │   ├── mapper/           # MyBatis-Plus Mapper（含自定义原子 SQL）
 │   ├── service/          # 业务逻辑（接口 + 实现，5 个服务）
 │   └── utils/            # JwtUtils（HS256 签发/校验）
@@ -334,6 +391,10 @@ campus-auction/
 7. **ETag HTTP 缓存**：商品详情接口支持 ETag，重复请求命中缓存时返回 `304 Not Modified`，减少不必要的带宽消耗。
 
 8. **防枚举攻击**：登录接口对"用户不存在"与"密码错误"统一返回相同错误信息，防止攻击者通过响应差异枚举有效用户名。
+
+9. **标准化 JAX-RS 表现层**：完整迁移至 **Jersey (JAX-RS 3.x)**，以 Servlet Filter 形式与 Spring MVC 协同；通过 `JwtSecurityFilter` / `ResultHttpStatusFilter` / `ExceptionMapper` 等全局 Provider 复现原有鉴权、状态同步与统一异常语义，核心 Spring Boot + MyBatis 生态零改动。
+
+10. **抗 OOM 的文件上传**：`FileResource` 采用混合阈值溢写策略（≤ 2 MB 走内存，超出溢写磁盘临时文件）+ `Closeable` try-with-resources 确定性清理，抵御堆内存压力型 DoS。
 
 ---
 
